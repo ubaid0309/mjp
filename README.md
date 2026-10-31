@@ -4,7 +4,7 @@ SecureMatrix analyses uploaded source code with a real static-analysis engine (S
 evidence, explains each one using a Retrieval-Augmented Generation (RAG) security knowledge base of 116 CWE weakness
 classes, scores and prioritises it, and tracks it through a remediation lifecycle.
 
-Final-year BE Computer Engineering major project. The full roadmap is in [`docs/PLAN.md`](docs/PLAN.md).
+Final-year BE Computer Engineering major project. The full roadmap is in [`docs/PLAN.md`](docs/PLAN.md); architecture and workflow figures for the report and paper are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Status (review 1: about 35% of the full scope)
 

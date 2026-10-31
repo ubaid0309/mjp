@@ -1,0 +1,66 @@
+%% Fig. 7 - Core data model (simplified; all tables use RLS)
+erDiagram
+  PROFILES ||--o{ PROJECTS : owns
+  PROFILES ||--o{ PROJECT_MEMBERS : "is member"
+  PROJECTS ||--o{ PROJECT_MEMBERS : has
+  PROJECTS ||--o{ SCAN_JOBS : "is scanned by"
+  SCAN_JOBS ||--o{ SCAN_JOB_EVENTS : logs
+  SCAN_JOBS ||--o{ PROJECT_FILES_METADATA : records
+  SCAN_JOBS ||--o{ SCAN_RESULTS : produces
+  PROJECTS ||--o{ VULNERABILITIES : has
+  SCAN_RESULTS }o--|| VULNERABILITIES : "merged into"
+  VULNERABILITIES ||--o{ FINDING_KNOWLEDGE_REFS : "cites"
+  KNOWLEDGE_DOCUMENTS ||--o{ FINDING_KNOWLEDGE_REFS : "cited by"
+  KNOWLEDGE_DOCUMENTS ||--o{ KNOWLEDGE_CHUNKS : "split into"
+  VULNERABILITIES ||--o{ REMEDIATION_SUGGESTIONS : has
+  VULNERABILITIES ||--o{ REMEDIATION_HISTORY : has
+  VULNERABILITIES ||--o{ FINDING_COMMENTS : has
+  VULNERABILITIES ||--o{ FINDING_ASSIGNMENTS : has
+  PROJECTS ||--o{ THREAT_SCENARIOS : has
+  PROJECTS ||--o{ AUDIT_LOGS : records
+
+  PROJECTS {
+    uuid id PK
+    uuid owner_id FK
+    text name
+    jsonb scan_settings
+  }
+  SCAN_JOBS {
+    uuid id PK
+    uuid project_id FK
+    text status
+    text stage
+    int batches_done
+    int batches_total
+    jsonb coverage
+  }
+  VULNERABILITIES {
+    uuid id PK
+    uuid project_id FK
+    text fingerprint
+    text severity
+    text_array cwe_ids
+    numeric risk_score
+    text status
+    text verification_status
+  }
+  KNOWLEDGE_DOCUMENTS {
+    uuid id PK
+    text cwe_id UK
+    text category
+    text_array remediation
+    text index_status
+  }
+  KNOWLEDGE_CHUNKS {
+    uuid id PK
+    uuid document_id FK
+    text section
+    vector_384 embedding
+    text embedding_model
+  }
+  FINDING_KNOWLEDGE_REFS {
+    uuid vulnerability_id FK
+    uuid document_id FK
+    real similarity
+    text match_type
+  }

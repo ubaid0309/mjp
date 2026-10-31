@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1340" height="400" viewBox="0 0 1340 400" font-family="Arial, Helvetica, sans-serif">
+<rect width="100%" height="100%" fill="#FFFFFF"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3F4B5B"/></marker><marker id="arrowStart" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3F4B5B"/></marker></defs>
+<path d="M29,200 L60,200" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M160,200.0 L210,200.0" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M320,191.0 L380,191.0" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M380,209.0 L320,209.0" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M500,200.0 L560,200.0" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M690,200.0 L750,200.0" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M870,200.0 L930,200.0" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1100,200.0 L1170,200.0" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M110,175 L110,70 L180,70" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M245,175 L245,95" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M440,175 L440,70 L350,70" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M300,95 L300,175" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M625,225 L625,265 L470,265 L470,225" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M810,225 L810,290 L455,290 L455,225" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1015,225 L1015,315 L440,315 L440,225" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1230,225 L1230,350 L265,350 L265,225" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="60" y="175" width="100" height="50" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="110.0" y="203.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">New</text>
+<rect x="210" y="175" width="110" height="50" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="265.0" y="203.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Triaged</text>
+<rect x="380" y="175" width="120" height="50" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="440.0" y="203.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">In progress</text>
+<rect x="560" y="175" width="130" height="50" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="625.0" y="203.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Fix proposed</text>
+<rect x="750" y="175" width="120" height="50" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="810.0" y="203.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Fix applied</text>
+<rect x="930" y="175" width="170" height="50" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="1015.0" y="203.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Verification pending</text>
+<rect x="1170" y="175" width="120" height="50" rx="6" fill="#EEF7F1" stroke="#2E7D4F" stroke-width="1.4"/>
+<text x="1230.0" y="203.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Resolved</text>
+<rect x="180" y="45" width="170" height="50" rx="6" fill="#FFF8E6" stroke="#B7791F" stroke-width="1.4"/>
+<text x="265.0" y="73.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Accepted risk</text>
+<text x="265" y="34" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#475569" font-style="italic">requires written justification</text>
+<text x="1230" y="150" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#475569" font-style="italic">only when a verification re-scan</text>
+<text x="1230" y="164" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#475569" font-style="italic">sets verified_resolved</text>
+<circle cx="22" cy="200" r="7" fill="#3F4B5B"/>
+<text x="22" y="224" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#475569">scan</text>
+<rect x="1108.95" y="179.0" width="52.1" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="1135" y="190.0" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">re-scan</text>
+<rect x="310" y="129" width="52.1" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="314" y="140" font-size="11.5" font-weight="normal" text-anchor="start" fill="#14202E">revoked</text>
+<rect x="681.9" y="308" width="96.2" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="730" y="319" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">still detected</text>
+<rect x="605.55" y="343" width="278.9" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="745" y="354" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">reopened when a later scan detects it again</text>
+<text x="670" y="388" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#475569" font-style="italic">Simplified: New, Triaged and In progress may also move directly to Fix proposed (full rules in Table 1).</text>
+</svg>

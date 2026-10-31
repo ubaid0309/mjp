@@ -1,0 +1,45 @@
+%% Fig. 5 - Sequence of a scan, from upload to results
+sequenceDiagram
+  autonumber
+  actor U as Analyst
+  participant W as Web app
+  participant A as Supabase Auth
+  participant S as Storage (private)
+  participant D as PostgreSQL (RLS, RPC)
+  participant K as Worker
+  participant G as Semgrep
+  participant O as OpenAI
+
+  U->>W: Sign in
+  W->>A: email + password
+  A-->>W: JWT session
+  U->>W: Create project, choose ZIP and rule sets
+  W->>D: insert project (RLS: owner = user)
+  W->>S: upload ZIP to user-id/project-id/
+  W->>D: create_scan_job() validates path and settings
+  D-->>W: job queued
+  loop every few seconds
+    K->>D: claim_next_scan_job()
+  end
+  D-->>K: job (status running)
+  K->>S: download archive
+  K->>K: validate and extract safely, classify files
+  loop for each batch of files
+    K->>D: check cancel flag
+    K->>G: scan batch with rule sets
+    G-->>K: JSON results
+    K->>D: progress (batches_done, heartbeat)
+  end
+  K->>K: normalise, deduplicate, redact
+  K->>O: embed finding queries
+  K->>D: match_knowledge_chunks() + CWE match
+  K->>K: risk score and priority
+  K->>D: worker_upsert_findings(), references, coverage
+  W->>D: poll job status and findings
+  D-->>W: results (only the user's projects)
+  U->>W: Open finding, ask for explanation
+  W->>K: /api/rag/ask (JWT)
+  K->>A: verify JWT
+  K->>O: embed question, then chat with excerpts
+  O-->>K: answer citing excerpts
+  K-->>W: grounded answer + sources

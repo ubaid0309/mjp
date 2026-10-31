@@ -1,0 +1,27 @@
+%% Fig. 2 - End-to-end workflow (solid = implemented, dashed = planned)
+flowchart TB
+  A["Upload project<br/>(ZIP archive)"] --> B["Store in private bucket<br/>and queue scan job"]
+  B --> C["Safe extraction and<br/>file discovery"]
+  C --> D["Static security analysis<br/>(Semgrep, batched)"]
+  D --> E["Normalise, deduplicate,<br/>redact secrets"]
+  E --> F["RAG knowledge retrieval<br/>(CWE match + vector search)"]
+  F --> G["Risk scoring and<br/>prioritisation (P1-P4)"]
+  G --> H["Persist findings<br/>with evidence and history"]
+  H --> I["Review: dashboard, explorer,<br/>finding detail, AI explanation"]
+  I --> J["Triage and lifecycle<br/>(status, notes, accepted risk)"]
+  H --> R["Security report<br/>(JSON now, PDF planned)"]
+
+  J -.-> K["Remediation suggestion<br/>(patch / diff)"]
+  K -.-> L{"User approves?"}
+  L -. "yes" .-> M["Apply patch to a copy<br/>(original never modified)"]
+  L -. "no" .-> J
+  M -.-> N["Verification re-scan<br/>of affected files"]
+  N -.-> O{"Still detected?"}
+  O -. "no" .-> P["Resolved and<br/>verified by re-scan"]
+  O -. "yes" .-> J
+  H -.-> T["Threat analysis<br/>(STRIDE, inferred)"]
+
+  classDef done fill:#EEF4FB,stroke:#2F5D8A,stroke-width:1.4px,color:#14202E
+  classDef planned fill:#FFFFFF,stroke:#94A3B8,stroke-width:1.2px,stroke-dasharray:5 4,color:#475569
+  class A,B,C,D,E,F,G,H,I,J,R done
+  class K,L,M,N,O,P,T planned

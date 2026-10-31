@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="730" viewBox="0 0 1400 730" font-family="Arial, Helvetica, sans-serif">
+<rect width="100%" height="100%" fill="#FFFFFF"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3F4B5B"/></marker><marker id="arrowStart" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3F4B5B"/></marker></defs>
+<rect x="20" y="20" width="420" height="690" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.2"/>
+<text x="34" y="42" font-size="13.5" font-weight="bold" text-anchor="start" fill="#334155">1. Ingest</text>
+<rect x="470" y="20" width="490" height="690" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.2"/>
+<text x="484" y="42" font-size="13.5" font-weight="bold" text-anchor="start" fill="#334155">2. Batched static analysis</text>
+<rect x="990" y="20" width="390" height="690" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.2"/>
+<text x="1004" y="42" font-size="13.5" font-weight="bold" text-anchor="start" fill="#334155">3. Enrich and persist</text>
+<path d="M235,117 L235,140" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M235,200 L235,225" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M235,285 L280,285 L280,305" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M150,365 L115,365" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M280,425 L280,450" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M235,510 L235,535" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M400,573 L455,573 L455,85 L525,85" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M715,115 L715,140" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M715,210 L715,238" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M715,302 L715,329" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M835,375 L850,375" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M715,421 L715,455" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M715,525 L715,555" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M610,590 L500,590 L500,270 L620,270" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M715,625 L715,668 L975,668 L975,90 L1030,90" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1185,125 L1185,140" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1185,210 L1185,225" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1185,295 L1185,310" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1185,380 L1185,395" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1185,465 L1185,480" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M1185,550 L1185,565" fill="none" stroke="#3F4B5B" stroke-width="1.4" marker-end="url(#arrow)"/>
+<path d="M155,65 a80.0,10 0 0,0 160,0 a80.0,10 0 0,0 -160,0 v42 a80.0,10 0 0,0 160,0 v-42" fill="#EEF7F1" stroke="#2E7D4F" stroke-width="1.4"/>
+<text x="235.0" y="86.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">scan_jobs</text>
+<text x="235.0" y="104.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">status = queued</text>
+<rect x="70" y="140" width="330" height="60" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="235.0" y="165.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Claim job</text>
+<text x="235.0" y="183.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">claim_next_scan_job(), SKIP LOCKED</text>
+<rect x="70" y="225" width="330" height="60" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="235.0" y="250.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Download archive</text>
+<text x="235.0" y="268.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">size limit enforced while streaming</text>
+<path d="M280,305.0 L410.0,365 L280,425.0 L150.0,365 Z" fill="#FFF8E6" stroke="#B7791F" stroke-width="1.4"/>
+<text x="280" y="343.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">Archive safe?</text>
+<text x="280" y="360.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">no absolute paths, '..',</text>
+<text x="280" y="377.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">symlinks, encryption,</text>
+<text x="280" y="394.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">zip bombs, size limits</text>
+<rect x="30" y="335" width="85" height="60" rx="6" fill="#FDECEC" stroke="#B42318" stroke-width="1.4"/>
+<text x="72.5" y="360.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Scan failed</text>
+<text x="72.5" y="378.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">reason shown</text>
+<rect x="70" y="450" width="330" height="60" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="235.0" y="475.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Extract and classify files</text>
+<text x="235.0" y="493.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">language by extension, binary sniffing</text>
+<rect x="70" y="535" width="330" height="76" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="235.0" y="559.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Record exclusions</text>
+<text x="235.0" y="577.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">dependencies, build output, lock files,</text>
+<text x="235.0" y="594.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">binaries, oversized, unsupported</text>
+<rect x="122.7" y="346" width="20.6" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="133" y="357" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">no</text>
+<rect x="284.55" y="431" width="26.9" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="298" y="442" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">yes</text>
+<rect x="525" y="55" width="380" height="60" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="715.0" y="80.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Split into batches</text>
+<text x="715.0" y="98.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">default 200 files per batch</text>
+<rect x="525" y="140" width="380" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="715.0" y="161.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Load rule sets</text>
+<text x="715.0" y="179.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">bundled rules + registry packs</text>
+<text x="715.0" y="196.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">(unavailable packs are reported)</text>
+<path d="M715,238.0 L810.0,270 L715,302.0 L620.0,270 Z" fill="#FFF8E6" stroke="#B7791F" stroke-width="1.4"/>
+<text x="715" y="273.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">Next batch</text>
+<path d="M715,329.0 L835.0,375 L715,421.0 L595.0,375 Z" fill="#FFF8E6" stroke="#B7791F" stroke-width="1.4"/>
+<text x="715" y="370.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">Cancel requested</text>
+<text x="715" y="387.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">or time limit?</text>
+<rect x="850" y="350" width="100" height="52" rx="6" fill="#FDECEC" stroke="#B42318" stroke-width="1.4"/>
+<text x="900.0" y="371.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Stopped</text>
+<text x="900.0" y="389.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">cancelled / failed</text>
+<rect x="525" y="455" width="380" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="715.0" y="485.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Run Semgrep on the batch</text>
+<text x="715.0" y="503.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">update batches_done and heartbeat</text>
+<path d="M715,555.0 L820.0,590 L715,625.0 L610.0,590 Z" fill="#FFF8E6" stroke="#B7791F" stroke-width="1.4"/>
+<text x="715" y="593.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">More batches?</text>
+<rect x="828.55" y="355" width="26.9" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="842" y="366" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">yes</text>
+<rect x="719.7" y="431" width="20.6" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="730" y="442" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">no</text>
+<rect x="501.55" y="419" width="26.9" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="515" y="430" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">yes</text>
+<rect x="719.7" y="639" width="20.6" height="15" fill="#FFFFFF" opacity="0.92"/>
+<text x="730" y="650" font-size="11.5" font-weight="normal" text-anchor="middle" fill="#14202E">no</text>
+<rect x="1030" y="55" width="310" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="1185.0" y="76.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Normalise results</text>
+<text x="1185.0" y="94.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">CWE / OWASP mapping, severity,</text>
+<text x="1185.0" y="111.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">confidence, redacted snippet</text>
+<rect x="1030" y="140" width="310" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="1185.0" y="161.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Deduplicate</text>
+<text x="1185.0" y="179.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">same file + line + CWE across rules;</text>
+<text x="1185.0" y="196.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">line-independent fingerprint</text>
+<rect x="1030" y="225" width="310" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="1185.0" y="246.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Retrieve knowledge per finding</text>
+<text x="1185.0" y="264.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">exact CWE match +</text>
+<text x="1185.0" y="281.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">pgvector cosine similarity</text>
+<rect x="1030" y="310" width="310" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="1185.0" y="331.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Risk score 0-100</text>
+<text x="1185.0" y="349.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">severity x exploitability</text>
+<text x="1185.0" y="366.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">x exposure x confidence</text>
+<rect x="1030" y="395" width="310" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="1185.0" y="425.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Upsert findings</text>
+<text x="1185.0" y="443.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">new / existing / reopened</text>
+<rect x="1030" y="480" width="310" height="70" rx="6" fill="#EEF4FB" stroke="#2F5D8A" stroke-width="1.4"/>
+<text x="1185.0" y="501.74" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">Save coverage report</text>
+<text x="1185.0" y="519.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">scanner version, rule sets,</text>
+<text x="1185.0" y="536.74" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">exclusions, limitations</text>
+<path d="M1105,575 a80.0,10 0 0,0 160,0 a80.0,10 0 0,0 -160,0 v42 a80.0,10 0 0,0 160,0 v-42" fill="#EEF7F1" stroke="#2E7D4F" stroke-width="1.4"/>
+<text x="1185.0" y="596.24" font-size="14" font-weight="bold" text-anchor="middle" fill="#14202E">scan_jobs</text>
+<text x="1185.0" y="614.24" font-size="12.5" font-weight="normal" text-anchor="middle" fill="#14202E">status = completed</text>
+</svg>
