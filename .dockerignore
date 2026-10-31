@@ -1,0 +1,9 @@
+**/node_modules
+web/
+**/.env
+**/.env.local
+**/__pycache__
+**/.venv
+**/.venv-semgrep
+demo/
+.git

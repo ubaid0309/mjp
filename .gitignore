@@ -14,3 +14,5 @@ supabase/.branches/
 *.tsbuildinfo
 # Synthetic demo config (intentionally insecure, no real secrets)
 !demo/bytemart-vulnerable/.env
+.securematrix-mode
+.sandbox/

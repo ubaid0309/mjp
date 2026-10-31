@@ -5,6 +5,7 @@ RUN python -m venv /opt/semgrep && /opt/semgrep/bin/pip install --no-cache-dir s
 ENV SEMGREP_BIN=/opt/semgrep/bin/semgrep \
     SM_WORK_DIR=/tmp/securematrix \
     SM_KNOWLEDGE_DIR=/app/knowledge \
+    SM_MIGRATIONS_DIR=/app/supabase/migrations \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app/worker
@@ -15,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY worker/ /app/worker/
 COPY knowledge/ /app/knowledge/
+COPY supabase/migrations/ /app/supabase/migrations/
 
 # Scans run untrusted archives through Semgrep: run as an unprivileged user.
 RUN useradd --create-home --uid 10001 securematrix && mkdir -p /tmp/securematrix && chown securematrix /tmp/securematrix

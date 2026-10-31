@@ -61,41 +61,54 @@ demo/                  intentionally vulnerable ByteMart project (+ ready-made z
 docs/PLAN.md           phased implementation plan
 ```
 
-## Setup on Windows with Supabase Cloud
+## Quick start on Windows (about 10 minutes)
 
-Prerequisites: Node.js 20+, Docker Desktop, a free Supabase project, and optionally an OpenAI API key.
+You need: a free Supabase project, Docker Desktop (setup offers to install it), and optionally an OpenAI API key.
 
-### 1. Database
+1. **Create the Supabase project** at https://supabase.com/dashboard (any region near you). Keep the database
+   password you choose; you need it in step 3.
+2. **Double-click `setup.bat`** in the project folder. It installs Node.js/Docker Desktop with `winget` if they are
+   missing, then asks for:
 
-1. Create a project at supabase.com. From **Project settings > API** copy the project URL, the `anon`/publishable key
-   and the `service_role`/secret key.
-2. Open **SQL Editor** and run the three files in `supabase/migrations/` in order (`...0100_core_schema.sql`,
-   `...0200_functions_and_rls.sql`, `...0300_worker_rpcs.sql`).
-   With the Supabase CLI you can instead run `npx supabase link --project-ref <ref>` then `npx supabase db push`.
-3. For a quick demo, turn off **Authentication > Providers > Email > Confirm email**, or confirm accounts by email.
+   | Prompt | Where to find it in Supabase |
+   |---|---|
+   | Project URL | Project Settings > API (or Data API): `https://<ref>.supabase.co` |
+   | anon / publishable key | Project Settings > API Keys: `anon` (legacy) or `publishable` |
+   | service_role / secret key | Same page: `service_role` (legacy) or a `secret` key. Keep it private |
+   | Database connection string | **Connect** button (top bar) > **Session pooler** > URI. Replace `[YOUR-PASSWORD]` |
+   | OpenAI API key | platform.openai.com > API keys (optional) |
+   | Admin email and password | Anything you like; this becomes the app's administrator, already confirmed |
 
-### 2. Worker
+   Setup then builds the worker (with Semgrep), applies the database migrations, creates the admin account, loads
+   and embeds the 116-record knowledge base, installs the web app, runs a health check and opens
+   http://localhost:5173.
+3. **Sign in** and upload `demo\bytemart-vulnerable.zip` from **New scan**.
 
-```powershell
-copy worker\.env.example worker\.env      # fill SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY
-docker compose up --build -d worker
-docker compose run --rm worker python -m securematrix_worker kb-import
-```
+Every day after that:
 
-`kb-import` loads the 116 knowledge documents. The running worker embeds them within about 30 seconds
-(OpenAI `text-embedding-3-small`, 384 dimensions); watch progress on the Knowledge base page.
-Check `http://localhost:8787/health`: it reports the Semgrep version, embedding model and whether the LLM is configured.
+| File | What it does |
+|---|---|
+| `start.bat` | Starts the worker and web app, opens the browser |
+| `stop.bat` | Stops both |
+| `check.bat` | Health check: database, storage, admin, knowledge base, Semgrep, OpenAI, worker API |
+| `setup.bat` | Safe to re-run (e.g. to add the OpenAI key later); finished steps are skipped |
 
-### 3. Web app
+Without Docker: `setup.bat -Native` uses a local Python 3.10+ instead. Docker is recommended because Semgrep's
+native Windows support is limited.
 
-```powershell
-cd web
-copy .env.example .env.local              # fill VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-npm install
-npm run dev                               # http://localhost:5173
-```
+If the database step fails (for example a wrong password), you can instead paste the three files from
+`supabase/migrations/` into the Supabase **SQL Editor** in order and leave the connection string empty.
 
-Register (the first account becomes admin), open **New scan** and upload `demo/bytemart-vulnerable.zip`.
+### Manual setup (any OS)
+
+1. Apply `supabase/migrations/*.sql` in order (SQL Editor, or `npx supabase db push` after `npx supabase link`).
+2. Worker: copy `worker/.env.example` to `worker/.env`, fill it in, then
+   `docker compose up --build -d worker` and
+   `docker compose run --rm worker python -m securematrix_worker bootstrap`
+   (set `SM_ADMIN_EMAIL` / `SM_ADMIN_PASSWORD` and pass them with `-e` to create a confirmed admin).
+3. Web: copy `web/.env.example` to `web/.env.local`, fill it in, then `npm ci` and `npm run dev` in `web/`.
+
+Worker commands: `run`, `bootstrap`, `migrate`, `create-admin`, `kb-import`, `kb-index`, `doctor`.
 
 ## Environment variables
 
@@ -104,6 +117,7 @@ Register (the first account becomes admin), open **New scan** and upload `demo/b
 | web | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Public Supabase settings (RLS protects data) |
 | web | `VITE_WORKER_API_URL` | Worker API, default `http://localhost:8787` |
 | worker | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Required. The service key never leaves the worker |
+| worker | `DATABASE_URL` | Only for `migrate`/`bootstrap`: Supabase Session pooler connection string |
 | worker | `OPENAI_API_KEY` | Embeddings + grounded explanations |
 | worker | `OPENAI_CHAT_MODEL` | Chat model for explanations (default `gpt-4o-mini`) |
 | worker | `EMBEDDING_PROVIDER` | `openai`, `local` (bge-small on CPU, build with `LOCAL_EMBEDDINGS=true`) or `none` |

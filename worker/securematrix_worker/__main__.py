@@ -3,12 +3,18 @@
     python -m securematrix_worker run          # job loop + KB indexer + HTTP API
     python -m securematrix_worker kb-import    # load knowledge/entries/*.json into the database
     python -m securematrix_worker kb-index     # embed pending/stale knowledge documents now
+    python -m securematrix_worker migrate      # apply supabase/migrations using DATABASE_URL
+    python -m securematrix_worker create-admin # confirmed admin from SM_ADMIN_EMAIL / SM_ADMIN_PASSWORD
+    python -m securematrix_worker bootstrap    # all of the above in order, then doctor
+    python -m securematrix_worker doctor       # check that every part is configured and working
 """
 from __future__ import annotations
 
 import argparse
 import logging
+import os
 import platform
+import sys
 import threading
 import time
 
@@ -61,26 +67,97 @@ def job_loop() -> None:
         time.sleep(settings.poll_seconds)
 
 
+def _kb_index() -> int:
+    from .rag import index_pending
+    total = 0
+    while True:
+        res = index_pending(client())
+        if res.get("skipped"):
+            print(f"  Skipped embedding: {res['skipped']}")
+            return total
+        total += res.get("indexed", 0)
+        if res.get("failed"):
+            print(f"  {res['failed']} documents failed to index (see index_error on the Knowledge base page)")
+        if not res.get("indexed"):
+            return total
+        print(f"  embedded {total} documents so far with {res['model']}")
+
+
+def _step(title: str) -> None:
+    print(f"\n== {title}")
+
+
+def bootstrap() -> int:
+    from . import admin
+    from .rag import import_entries, load_entries
+
+    _step("Database migrations")
+    if os.getenv("DATABASE_URL"):
+        applied = admin.migrate(os.environ["DATABASE_URL"])
+        print(f"  applied: {', '.join(applied)}" if applied else "  already up to date")
+        admin.wait_for_api_schema(client())
+    else:
+        print("  DATABASE_URL not set, skipping (apply supabase/migrations in the SQL editor instead)")
+
+    _step("Administrator account")
+    email, password = os.getenv("SM_ADMIN_EMAIL", ""), os.getenv("SM_ADMIN_PASSWORD", "")
+    if email and password:
+        print(f"  {email}: {admin.create_admin(client(), email, password, os.getenv('SM_ADMIN_NAME', ''))}")
+    else:
+        print("  not requested; the first account registered in the app becomes admin")
+
+    _step("Knowledge base")
+    print(f"  imported {import_entries(client(), load_entries())} documents")
+    print(f"  embedded {_kb_index()} documents")
+
+    _step("Health check")
+    ok = admin.print_checks(admin.doctor(client()))
+    return 0 if ok else 1
+
+
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(level=logging.INFO if "run" in sys.argv else logging.WARNING,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(prog="securematrix_worker")
-    parser.add_argument("command", choices=["run", "kb-import", "kb-index"])
+    parser.add_argument("command", choices=["run", "kb-import", "kb-index", "migrate", "create-admin", "bootstrap", "doctor"])
+    parser.add_argument("--api", help="doctor: also check the worker API at this URL")
     args = parser.parse_args()
+
+    from .admin import SetupError
+    try:
+        if args.command == "bootstrap":
+            sys.exit(bootstrap())
+        if args.command == "migrate":
+            from .admin import migrate
+            applied = migrate(os.getenv("DATABASE_URL", ""))
+            print(f"Applied: {', '.join(applied)}" if applied else "Database already up to date")
+            return
+        if args.command == "create-admin":
+            from .admin import create_admin
+            email, password = os.getenv("SM_ADMIN_EMAIL", ""), os.getenv("SM_ADMIN_PASSWORD", "")
+            if not email or not password:
+                raise SetupError("Set SM_ADMIN_EMAIL and SM_ADMIN_PASSWORD")
+            print(f"{email}: {create_admin(client(), email, password, os.getenv('SM_ADMIN_NAME', ''))}")
+            return
+        if args.command == "doctor":
+            from .admin import doctor, print_checks
+            print("SecureMatrix health check")
+            sys.exit(0 if print_checks(doctor(client(), args.api)) else 1)
+    except SetupError as exc:
+        print(f"\nERROR: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as exc:  # noqa: BLE001 - setup commands should end with a readable message, not a traceback
+        if args.command in ("run", "kb-import", "kb-index"):
+            raise
+        print(f"\nERROR: {type(exc).__name__}: {str(exc)[:400]}", file=sys.stderr)
+        sys.exit(2)
 
     if args.command == "kb-import":
         from .rag import import_entries, load_entries
         n = import_entries(client(), load_entries())
         print(f"Imported {n} knowledge documents. Run `kb-index` (or start the worker) to embed them.")
     elif args.command == "kb-index":
-        from .rag import index_pending
-        total = 0
-        while True:
-            res = index_pending(client())
-            print(res)
-            if not res.get("indexed"):
-                break
-            total += res["indexed"]
-        print(f"Indexed {total} documents")
+        print(f"Indexed {_kb_index()} documents")
     else:
         import uvicorn
         from .api import app
