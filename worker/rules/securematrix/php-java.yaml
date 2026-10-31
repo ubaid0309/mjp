@@ -1,0 +1,221 @@
+# SecureMatrix bundled Semgrep rules: PHP and Java
+rules:
+  - id: sm-php-sql-string-build
+    languages: [php]
+    severity: ERROR
+    message: >-
+      A SQL query is concatenated with variables and executed. Use PDO/mysqli prepared statements with bound parameters.
+    patterns:
+      - pattern-either:
+          - pattern: mysqli_query($C, $Q, ...)
+          - pattern: $DB->query($Q, ...)
+          - pattern: $DB->exec($Q)
+          - pattern: mysql_query($Q, ...)
+      - pattern-not: mysqli_query($C, "...", ...)
+      - pattern-not: $DB->query("...", ...)
+      - pattern-not: $DB->exec("...")
+      - pattern-not: mysql_query("...", ...)
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: LOW
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-php-command-injection
+    languages: [php]
+    severity: ERROR
+    message: A shell command is built from a variable. Use escapeshellarg() on every argument, or avoid the shell entirely.
+    patterns:
+      - pattern-either:
+          - pattern: system($CMD, ...)
+          - pattern: exec($CMD, ...)
+          - pattern: shell_exec($CMD)
+          - pattern: passthru($CMD, ...)
+          - pattern: popen($CMD, ...)
+          - pattern: proc_open($CMD, ...)
+      - pattern-not: system("...", ...)
+      - pattern-not: exec("...", ...)
+      - pattern-not: shell_exec("...")
+      - pattern-not: passthru("...", ...)
+      - pattern-not: system(escapeshellcmd(...), ...)
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-php-reflected-xss
+    languages: [php]
+    severity: ERROR
+    message: Request data is echoed without htmlspecialchars(). This is reflected XSS.
+    patterns:
+      - pattern-either:
+          - pattern: echo <... $_GET[$K] ...>;
+          - pattern: echo <... $_POST[$K] ...>;
+          - pattern: echo <... $_REQUEST[$K] ...>;
+          - pattern: print(<... $_GET[$K] ...>);
+      - pattern-not: echo <... htmlspecialchars(...) ...>;
+      - pattern-not: echo <... htmlentities(...) ...>;
+    metadata:
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: MEDIUM
+      category: security
+
+  - id: sm-php-file-inclusion
+    languages: [php]
+    severity: ERROR
+    message: include/require uses request data. Attackers can include arbitrary local (or remote) files. Map allowed page names to fixed paths.
+    pattern-either:
+      - pattern: include <... $_GET[$K] ...>;
+      - pattern: include_once <... $_GET[$K] ...>;
+      - pattern: require <... $_GET[$K] ...>;
+      - pattern: require_once <... $_GET[$K] ...>;
+      - pattern: include <... $_REQUEST[$K] ...>;
+    metadata:
+      cwe: ["CWE-829: Inclusion of Functionality from Untrusted Control Sphere", "CWE-98: Improper Control of Filename for Include/Require Statement in PHP Program ('PHP Remote File Inclusion')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-php-unserialize
+    languages: [php]
+    severity: ERROR
+    message: unserialize() on request data enables PHP object injection. Use json_decode() instead.
+    pattern-either:
+      - pattern: unserialize(<... $_GET[$K] ...>, ...)
+      - pattern: unserialize(<... $_POST[$K] ...>, ...)
+      - pattern: unserialize(<... $_COOKIE[$K] ...>, ...)
+      - pattern: unserialize(<... $_REQUEST[$K] ...>, ...)
+    metadata:
+      cwe: ["CWE-502: Deserialization of Untrusted Data"]
+      owasp: ["A08:2021 - Software and Data Integrity Failures"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-php-weak-password-hash
+    languages: [php]
+    severity: WARNING
+    message: md5()/sha1() is used for a password. Use password_hash() with PASSWORD_ARGON2ID or PASSWORD_BCRYPT.
+    patterns:
+      - pattern-either:
+          - pattern: md5($X)
+          - pattern: sha1($X)
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i).*(pass|pwd).*
+    metadata:
+      cwe: ["CWE-916: Use of Password Hash With Insufficient Computational Effort"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-php-unrestricted-upload
+    languages: [php]
+    severity: ERROR
+    message: >-
+      An upload is stored under its client-supplied name with no extension/type validation. A .php upload can lead
+      to remote code execution. Validate against an allow-list and generate a random file name.
+    pattern: move_uploaded_file($TMP, <... $_FILES[$F]['name'] ...>)
+    metadata:
+      cwe: ["CWE-434: Unrestricted Upload of File with Dangerous Type"]
+      owasp: ["A04:2021 - Insecure Design"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-java-sql-string-build
+    languages: [java]
+    severity: ERROR
+    message: A SQL string is concatenated and executed with Statement. Use PreparedStatement with ? placeholders.
+    pattern-either:
+      - pattern: $ST.executeQuery("..." + $X)
+      - pattern: $ST.executeQuery("..." + $X + $Y)
+      - pattern: $ST.executeUpdate("..." + $X + $Y)
+      - pattern: $ST.executeUpdate("..." + $X)
+      - pattern: $ST.execute("..." + $X)
+      - pattern: |
+          String $Q = "..." + $X;
+          ...
+          $ST.$EXEC($Q);
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-java-command-injection
+    languages: [java]
+    severity: ERROR
+    message: Runtime.exec() is called with a non-constant command string. Use ProcessBuilder with an argument list and validate inputs.
+    patterns:
+      - pattern: Runtime.getRuntime().exec($CMD)
+      - pattern-not: Runtime.getRuntime().exec("...")
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-java-weak-hash
+    languages: [java]
+    severity: WARNING
+    message: MD5/SHA-1 MessageDigest is cryptographically broken. Use SHA-256+ (integrity) or a password KDF (passwords).
+    pattern-either:
+      - pattern: MessageDigest.getInstance("MD5")
+      - pattern: MessageDigest.getInstance("SHA-1")
+      - pattern: MessageDigest.getInstance("SHA1")
+    metadata:
+      cwe: ["CWE-328: Use of Weak Hash"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-java-weak-cipher
+    languages: [java]
+    severity: ERROR
+    message: DES/3DES or AES/ECB (also the default for "AES") is used. Use "AES/GCM/NoPadding" with a random 12-byte IV.
+    patterns:
+      - pattern: Cipher.getInstance("$ALG")
+      - metavariable-regex:
+          metavariable: $ALG
+          regex: ^(DES|DESede|RC4|AES|AES/ECB/.*|DES/.*|DESede/.*|Blowfish.*)$
+    metadata:
+      cwe: ["CWE-327: Use of a Broken or Risky Cryptographic Algorithm"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-java-unsafe-deserialization
+    languages: [java]
+    severity: ERROR
+    message: ObjectInputStream.readObject() on untrusted data can lead to remote code execution through gadget chains. Use an ObjectInputFilter allow-list or a data format such as JSON.
+    pattern: (ObjectInputStream $IN).readObject()
+    metadata:
+      cwe: ["CWE-502: Deserialization of Untrusted Data"]
+      owasp: ["A08:2021 - Software and Data Integrity Failures"]
+      confidence: LOW
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security

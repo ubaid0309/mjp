@@ -1,0 +1,376 @@
+# SecureMatrix bundled Semgrep rules: JavaScript / TypeScript (Node.js, Express, browser)
+rules:
+  - id: sm-js-sql-string-build
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      SQL text is built with concatenation or a template literal and passed to query(). User-controlled parts
+      allow SQL injection. Use placeholders (`?` / `$1`) and pass values separately.
+    pattern-either:
+      - pattern: $DB.query("..." + $X, ...)
+      - pattern: $DB.query("..." + $X + $Y, ...)
+      - pattern: $DB.query(`...${$X}...`, ...)
+      - pattern: $DB.execute("..." + $X, ...)
+      - pattern: $DB.execute(`...${$X}...`, ...)
+      - pattern: $DB.raw(`...${$X}...`, ...)
+      - pattern: |
+          $Q = `...${$X}...`;
+          ...
+          $DB.query($Q, ...);
+      - pattern: |
+          $Q = "..." + $X;
+          ...
+          $DB.query($Q, ...);
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-js-nosql-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A MongoDB query is built directly from request data. If the client sends an object such as {"$ne": null}
+      the filter changes meaning (operator injection). Cast fields to strings or validate them with a schema.
+    patterns:
+      - pattern-either:
+          - pattern: $M.$FIND(req.body, ...)
+          - pattern: $M.$FIND(req.query, ...)
+          - pattern: '$M.$FIND({..., $K: req.body.$F, ...}, ...)'
+          - pattern: '$M.$FIND({..., $K: req.query.$F, ...}, ...)'
+      - metavariable-regex:
+          metavariable: $FIND
+          regex: ^(find|findOne|findOneAndUpdate|updateOne|updateMany|deleteOne|deleteMany|countDocuments)$
+    metadata:
+      cwe: ["CWE-943: Improper Neutralization of Special Elements in Data Query Logic"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-js-command-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A shell command is built from a non-constant value. Use execFile/spawn with an argument array (no shell)
+      and validate inputs against an allow-list.
+    patterns:
+      - pattern-either:
+          - pattern: child_process.exec($CMD, ...)
+          - pattern: child_process.execSync($CMD, ...)
+          - pattern: 'child_process.spawn($CMD, ..., {..., shell: true, ...})'
+      - pattern-not: child_process.exec("...", ...)
+      - pattern-not: child_process.execSync("...", ...)
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-js-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: eval()/new Function() executes a non-constant string. If it can contain user input this is code injection.
+    patterns:
+      - pattern-either:
+          - pattern: eval($X)
+          - pattern: new Function(..., $X)
+          - pattern: setTimeout($X, ...)
+      - pattern-not: eval("...")
+      - pattern-not: new Function(..., "...")
+      - pattern-not: setTimeout(function (...) {...}, ...)
+      - pattern-not: setTimeout((...) => $Y, ...)
+      - pattern-not: setTimeout($F, ...)
+    metadata:
+      cwe: ["CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code ('Eval Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-js-dom-xss
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Non-constant data is written into the DOM as HTML (innerHTML / outerHTML / document.write /
+      insertAdjacentHTML). If it contains user input this is DOM-based XSS. Use textContent or sanitize with DOMPurify.
+    patterns:
+      - pattern-either:
+          - pattern: $EL.innerHTML = $X
+          - pattern: $EL.outerHTML = $X
+          - pattern: document.write($X)
+          - pattern: $EL.insertAdjacentHTML($P, $X)
+      - pattern-not: $EL.innerHTML = "..."
+      - pattern-not: $EL.outerHTML = "..."
+      - pattern-not: document.write("...")
+      - pattern-not: $EL.innerHTML = DOMPurify.sanitize(...)
+    metadata:
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-js-reflected-xss
+    languages: [javascript, typescript]
+    severity: ERROR
+    mode: taint
+    message: >-
+      Request data is sent back in an HTML response without encoding. This is reflected XSS. Render through a
+      templating engine with autoescaping or encode the value for HTML.
+    pattern-sources:
+      - pattern: req.query
+      - pattern: req.params
+      - pattern: req.body
+    pattern-sanitizers:
+      - pattern: escapeHtml(...)
+      - pattern: encodeURIComponent(...)
+      - pattern: validator.escape(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $RES.send($X)
+              - pattern: $RES.write($X)
+          - focus-metavariable: $X
+    metadata:
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: MEDIUM
+      category: security
+
+  - id: sm-js-path-traversal
+    languages: [javascript, typescript]
+    severity: ERROR
+    mode: taint
+    message: >-
+      A file path built from request data reaches a filesystem API. ../ sequences let attackers read files outside
+      the intended directory. Resolve the path and check it starts with the base directory, or use path.basename.
+    pattern-sources:
+      - pattern: req.query
+      - pattern: req.params
+      - pattern: req.body
+    pattern-sanitizers:
+      - pattern: path.basename(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fs.$F($P, ...)
+              - pattern: $RES.sendFile($P, ...)
+              - pattern: $RES.download($P, ...)
+          - focus-metavariable: $P
+    metadata:
+      cwe: ["CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-js-ssrf
+    languages: [javascript, typescript]
+    severity: ERROR
+    mode: taint
+    message: >-
+      The server fetches a URL that comes from the request. Attackers can reach internal services or cloud metadata
+      endpoints. Allow-list destination hosts and block private address ranges.
+    pattern-sources:
+      - pattern: req.query
+      - pattern: req.params
+      - pattern: req.body
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fetch($U, ...)
+              - pattern: axios.$M($U, ...)
+              - pattern: axios($U, ...)
+              - pattern: http.get($U, ...)
+              - pattern: https.get($U, ...)
+          - focus-metavariable: $U
+    metadata:
+      cwe: ["CWE-918: Server-Side Request Forgery (SSRF)"]
+      owasp: ["A10:2021 - Server-Side Request Forgery"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-js-open-redirect
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: The redirect target comes from the request. Attackers can send users to phishing sites. Only allow relative paths or known hosts.
+    pattern-either:
+      - pattern: $RES.redirect(req.query.$P)
+      - pattern: $RES.redirect(req.body.$P)
+      - pattern: $RES.redirect(req.params.$P)
+    metadata:
+      cwe: ["CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-js-insecure-random-secret
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      Math.random() is used for a security-sensitive value; it is predictable. Use crypto.randomBytes /
+      crypto.randomUUID (Node) or crypto.getRandomValues (browser).
+    patterns:
+      - pattern: Math.random()
+      - pattern-either:
+          - pattern-inside: |
+              function $FN(...) { ... }
+          - pattern-inside: |
+              const $FN = (...) => { ... }
+          - pattern-inside: |
+              $FN = $EXPR
+      - metavariable-regex:
+          metavariable: $FN
+          regex: (?i).*(token|secret|password|otp|nonce|salt|session|reset|apikey|api_key).*
+    metadata:
+      cwe: ["CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-js-hardcoded-secret
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A credential appears to be hard-coded. Move it to environment variables or a secrets manager and rotate it.
+    patterns:
+      - pattern-either:
+          - pattern: const $NAME = "$VALUE"
+          - pattern: let $NAME = "$VALUE"
+          - pattern: var $NAME = "$VALUE"
+          - pattern: '{..., $NAME: "$VALUE", ...}'
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)^["']?[\w]*(password|passwd|pwd|secret|api_?key|apikey|access_?key|auth_?token|private_?key|jwt_?secret)["']?$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^(?!(changeme|example|placeholder|xxx+|\*+|your[-_].*|<.*>|test)$).{6,}$
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-js-weak-hash
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: MD5/SHA-1 are cryptographically broken. For passwords use bcrypt/argon2/scrypt; for integrity use SHA-256+.
+    pattern-either:
+      - pattern: crypto.createHash("md5")
+      - pattern: crypto.createHash("sha1")
+      - pattern: createHash("md5")
+      - pattern: createHash("sha1")
+    metadata:
+      cwe: ["CWE-328: Use of Weak Hash"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-js-permissive-cors
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      CORS allows any origin (or reflects the request origin) while allowing credentials. Any website can then make
+      authenticated requests and read the responses. Configure an explicit allow-list of trusted origins.
+    pattern-either:
+      - pattern: 'cors({..., origin: "*", ..., credentials: true, ...})'
+      - pattern: 'cors({..., credentials: true, ..., origin: true, ...})'
+      - pattern: 'cors({..., origin: true, ..., credentials: true, ...})'
+      - pattern: $RES.setHeader("Access-Control-Allow-Origin", req.headers.origin)
+      - pattern: $RES.header("Access-Control-Allow-Origin", req.headers.origin)
+    metadata:
+      cwe: ["CWE-942: Permissive Cross-domain Security Policy with Untrusted Domains"]
+      owasp: ["A05:2021 - Security Misconfiguration"]
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-js-cookie-missing-flags
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      A cookie is set without HttpOnly/Secure/SameSite options. Session cookies become readable by injected scripts
+      and can be sent over plain HTTP or cross-site. Set { httpOnly: true, secure: true, sameSite: 'lax' }.
+    patterns:
+      - pattern-either:
+          - pattern: $RES.cookie($NAME, $VALUE)
+          - pattern: '$RES.cookie($NAME, $VALUE, {..., httpOnly: false, ...})'
+    metadata:
+      cwe: ["CWE-1004: Sensitive Cookie Without 'HttpOnly' Flag", "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute"]
+      owasp: ["A05:2021 - Security Misconfiguration"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-js-jwt-none-algorithm
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: JWT verification accepts the "none" algorithm or skips verification, so tokens can be forged.
+    pattern-either:
+      - pattern: 'jwt.verify($T, $K, {..., algorithms: [..., "none", ...], ...}, ...)'
+      - pattern: 'jwt.decode($T, {..., complete: $C, ...})'
+      - pattern: jwt.decode($T)
+    metadata:
+      cwe: ["CWE-347: Improper Verification of Cryptographic Signature"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-js-tls-reject-disabled
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: TLS certificate validation is disabled; connections can be intercepted.
+    pattern-either:
+      - pattern: '{..., rejectUnauthorized: false, ...}'
+      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+    metadata:
+      cwe: ["CWE-295: Improper Certificate Validation"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      confidence: HIGH
+      likelihood: LOW
+      impact: HIGH
+      category: security
+
+  - id: sm-js-unrestricted-upload
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      An uploaded file is moved to a path built from the client-supplied file name with no type check. Validate the
+      extension and MIME type against an allow-list and generate the stored name yourself.
+    pattern-either:
+      - pattern: $FILE.mv(<... $FILE.name ...>, ...)
+      - pattern: fs.writeFileSync(<... $FILE.originalname ...>, ...)
+      - pattern: fs.rename($SRC, <... $FILE.originalname ...>, ...)
+    metadata:
+      cwe: ["CWE-434: Unrestricted Upload of File with Dangerous Type"]
+      owasp: ["A04:2021 - Insecure Design"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security

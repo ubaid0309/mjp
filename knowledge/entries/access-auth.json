@@ -1,0 +1,1818 @@
+[
+  {
+    "slug": "cwe-284-improper-access-control",
+    "cwe_id": "CWE-284",
+    "title": "Improper Access Control",
+    "cwe_name": "Improper Access Control",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "javascript",
+      "java",
+      "python",
+      "go",
+      "php"
+    ],
+    "description": "The product does not restrict, or incorrectly restricts, access to a resource by an unauthorized actor. CWE-284 is the umbrella class for access-control failures across identification, authentication, authorization and policy enforcement; more specific children such as CWE-285, CWE-862 and CWE-863 should be used when the exact failure is known. At the architecture level it typically arises when the access policy is scattered across individual routes, proxies or deployment settings instead of being enforced centrally with a deny-by-default rule.",
+    "prerequisites": [
+      "A resource or function is reachable through at least one path (route alias, legacy API version, direct port, alternate host) that bypasses the intended policy",
+      "The access policy is applied per entry point rather than at a single enforcement layer",
+      "The attacker can send requests directly to the application or service, not only through the intended client"
+    ],
+    "impact": [
+      "Unauthorized read or modification of data that the policy was meant to protect",
+      "Execution of administrative or internal functions by ordinary or anonymous users",
+      "Silent policy drift: new endpoints are exposed by default because nothing denies them"
+    ],
+    "detection_patterns": [
+      "Security configuration ending in a default-allow rule, e.g. Spring `anyRequest().permitAll()` or a router with no fallback deny",
+      "Access middleware attached to a URL prefix (`app.use('/admin', requireRole(...))`) while the same router is also mounted elsewhere (`/api/v1/admin`, `/internal`)",
+      "Protection implemented only in a reverse proxy or API gateway while the application port is also reachable directly",
+      "Comments or tickets describing endpoints as 'hidden', 'internal only' or 'not linked from the UI' as the access control"
+    ],
+    "remediation": [
+      "Enforce access policy in one central layer (framework security filter, router-level middleware or policy engine) and attach it to the resource rather than to a particular URL",
+      "Adopt deny-by-default: any route, method or resource not explicitly granted is rejected",
+      "Bind backend services to private interfaces and require authentication even for traffic that is expected to come from a trusted gateway",
+      "Maintain an inventory of every exposed route and API version and add automated tests asserting that unauthenticated and low-privilege users are rejected on each one"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "app.use('/admin', requireRole('admin'));\napp.use('/admin', adminRouter);\n// Legacy mount kept for an old mobile client: same handlers, no access check\napp.use('/api/v1/admin', adminRouter);"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "// Policy is attached to the router itself, so every mount point inherits it\nadminRouter.use(requireAuth, requireRole('admin'));\napp.use('/admin', adminRouter);\napp.use('/api/v1/admin', adminRouter); // legacy mount is now protected as well"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-284: Improper Access Control",
+        "url": "https://cwe.mitre.org/data/definitions/284.html"
+      },
+      {
+        "title": "OWASP Authorization Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-285-improper-authorization",
+    "cwe_id": "CWE-285",
+    "title": "Improper Authorization",
+    "cwe_name": "Improper Authorization",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [
+      "API5:2023-Broken Function Level Authorization"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "java",
+      "javascript",
+      "php"
+    ],
+    "description": "The product does not perform, or incorrectly performs, an authorization check when an actor attempts to access a resource or perform an action. A frequent root cause is treating authentication as authorization: any logged-in user is allowed to call a function that should be limited to a role, permission or data scope. CWE-285 is the parent of CWE-862 (check absent) and CWE-863 (check present but wrong).",
+    "prerequisites": [
+      "The attacker holds any valid account, including a self-registered or low-privilege one",
+      "The sensitive function is protected only by an 'is logged in' check or by hiding it in the user interface",
+      "The attacker can discover the endpoint, for example from JavaScript bundles, API documentation or traffic of a privileged user"
+    ],
+    "impact": [
+      "Ordinary users invoke privileged business functions such as bulk export, refunds or user management",
+      "Disclosure of data belonging to other tenants or departments",
+      "Breach of segregation of duties required by compliance regimes"
+    ],
+    "detection_patterns": [
+      "Django views decorated only with `@login_required` (or DRF `IsAuthenticated`) that perform admin, export or approval operations",
+      "Authorization decisions made in front-end code (hidden buttons, disabled menu items) with no matching server-side check",
+      "Querysets such as `Model.objects.all()` returned from a user-facing endpoint without filtering by the user's account or tenant",
+      "Inconsistent decorators across views in the same module: some carry `@permission_required`, siblings performing similar actions do not"
+    ],
+    "remediation": [
+      "Model permissions explicitly (roles, permissions or attribute-based policies) and check them server-side on every request, e.g. `@permission_required(..., raise_exception=True)` or DRF `DjangoModelPermissions`",
+      "Scope every query to the caller's tenant or account in addition to the permission check",
+      "Centralise policy decisions in a reusable function or policy engine so that handlers do not hand-roll checks",
+      "Write negative authorization tests that call each privileged endpoint with a low-privilege account and assert HTTP 403"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@login_required          # authentication is treated as authorization\ndef export_all_customers(request):\n    rows = Customer.objects.values(\"name\", \"email\", \"phone\")\n    return JsonResponse(list(rows), safe=False)"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "@login_required\n@permission_required(\"crm.export_customer\", raise_exception=True)\ndef export_all_customers(request):\n    rows = (Customer.objects.filter(account=request.user.account)\n            .values(\"name\", \"email\", \"phone\"))\n    return JsonResponse(list(rows), safe=False)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-285: Improper Authorization",
+        "url": "https://cwe.mitre.org/data/definitions/285.html"
+      },
+      {
+        "title": "OWASP Authorization Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-862-missing-authorization",
+    "cwe_id": "CWE-862",
+    "title": "Missing Authorization",
+    "cwe_name": "Missing Authorization",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [
+      "API5:2023-Broken Function Level Authorization"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "java",
+      "javascript",
+      "python",
+      "go"
+    ],
+    "description": "The product does not perform any authorization check when an actor attempts to access a resource or perform an action. In API code this usually appears as one handler in a controller that lacks the annotation or middleware its siblings carry, often because it was added later or copied from a public endpoint. Because the user is authenticated, the request looks legitimate in logs, which makes the flaw hard to notice in operation.",
+    "prerequisites": [
+      "The attacker can authenticate as any user, or the endpoint is also missing authentication",
+      "At least one state-changing or data-returning handler has no role, permission or ownership check",
+      "The HTTP method or path of the unprotected handler is guessable from related endpoints (e.g. `GET /users` is protected, `DELETE /users/{id}` is not)"
+    ],
+    "impact": [
+      "Privilege escalation from regular user to administrative capabilities",
+      "Deletion or modification of other users' accounts and data",
+      "Mass data extraction through unguarded list or export endpoints"
+    ],
+    "detection_patterns": [
+      "Spring controllers where some methods carry `@PreAuthorize`/`@Secured` and others in the same class do not, or `@EnableMethodSecurity` is missing so the annotations are ignored",
+      "Destructive mappings (`@DeleteMapping`, `@PutMapping`, `router.delete`) with no authorization middleware or annotation",
+      "Admin handlers whose only guard is that they are absent from navigation menus",
+      "Route tables in which new endpoints are registered outside the group or router that applies authorization"
+    ],
+    "remediation": [
+      "Apply authorization at the class or router level (`@PreAuthorize(\"hasRole('ADMIN')\")` on the controller, a guarded route group) so new methods inherit it",
+      "Enable method security (`@EnableMethodSecurity`) and fail the build or a test if a controller method has no security annotation",
+      "Use deny-by-default URL rules as a second layer, e.g. `requestMatchers(\"/api/admin/**\").hasRole(\"ADMIN\")` and `anyRequest().authenticated()`",
+      "Generate an endpoint-by-role access matrix and verify it with automated integration tests"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "@RestController\n@RequestMapping(\"/api/admin/users\")\nclass UserAdminController {\n    @PreAuthorize(\"hasRole('ADMIN')\")\n    @GetMapping\n    List<User> list() { return repo.findAll(); }\n\n    @DeleteMapping(\"/{id}\")   // no check: any authenticated user can delete accounts\n    void delete(@PathVariable Long id) { repo.deleteById(id); }\n}"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "@RestController\n@RequestMapping(\"/api/admin/users\")\n@PreAuthorize(\"hasRole('ADMIN')\")   // applies to every method, including new ones\nclass UserAdminController {\n    @GetMapping\n    List<User> list() { return repo.findAll(); }\n\n    @DeleteMapping(\"/{id}\")\n    void delete(@PathVariable Long id) { repo.deleteById(id); }\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-862: Missing Authorization",
+        "url": "https://cwe.mitre.org/data/definitions/862.html"
+      },
+      {
+        "title": "OWASP Authorization Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-863-incorrect-authorization",
+    "cwe_id": "CWE-863",
+    "title": "Incorrect Authorization",
+    "cwe_name": "Incorrect Authorization",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [
+      "API5:2023-Broken Function Level Authorization"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "java",
+      "javascript",
+      "python"
+    ],
+    "description": "The product performs an authorization check, but the check does not correctly determine whether the actor is allowed to perform the action, so it can be bypassed. Typical causes are denylist role checks, comparisons against the wrong attribute, path matching that differs from the router's own matching, and decisions based on client-supplied claims. The presence of a check gives false confidence during code review.",
+    "prerequisites": [
+      "An authorization check exists but uses a denylist, a string prefix match, or an attribute the client can influence",
+      "The attacker holds a role or crafts a request that the check did not anticipate (new role, alternate path encoding, different HTTP method)",
+      "The router normalises paths differently from the authorization filter"
+    ],
+    "impact": [
+      "Bypass of role restrictions by users whose role was never considered by the check",
+      "Access to protected paths via case changes, double slashes, trailing slashes or encoded characters",
+      "Unauthorized actions despite logs and code suggesting authorization was enforced"
+    ],
+    "detection_patterns": [
+      "Role checks of the form `if role == \"guest\" { deny }` or `role != \"user\"` instead of an explicit allow of the required role or permission",
+      "Path-based guards using `strings.HasPrefix(r.URL.Path, \"/admin\")`, `req.url.startsWith(...)` or regex on raw paths before normalisation",
+      "Decisions based on request data such as `X-Role` headers, a `role` field in the body, or an unverified token claim",
+      "Checks that validate the HTTP method or only one of several routes that reach the same handler (e.g. `GET` checked, `HEAD`/`POST` not)"
+    ],
+    "remediation": [
+      "Use allowlist checks: grant only when the subject explicitly holds the required permission, deny everything else",
+      "Perform authorization on the router's resolved route or handler, not on the raw request path",
+      "Derive roles and tenant membership from the server-side session or a verified token, never from request parameters",
+      "Cover each check with tests for unexpected roles, path variants and HTTP methods"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "func requireStaff(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        u := currentUser(r)\n        if u.Role == \"guest\" { // denylist: \"trial\", \"partner\" and typos all pass\n            http.Error(w, \"forbidden\", http.StatusForbidden)\n            return\n        }\n        next.ServeHTTP(w, r)\n    })\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "var staffRoles = map[string]bool{\"admin\": true, \"support\": true}\n\nfunc requireStaff(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        u := currentUser(r)\n        if u == nil || !staffRoles[u.Role] { // allowlist: unknown roles are denied\n            http.Error(w, \"forbidden\", http.StatusForbidden)\n            return\n        }\n        next.ServeHTTP(w, r)\n    })\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-863: Incorrect Authorization",
+        "url": "https://cwe.mitre.org/data/definitions/863.html"
+      },
+      {
+        "title": "OWASP Authorization Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-639-authorization-bypass-user-controlled-key",
+    "cwe_id": "CWE-639",
+    "title": "Insecure Direct Object Reference (IDOR / BOLA)",
+    "cwe_name": "Authorization Bypass Through User-Controlled Key",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [
+      "API1:2023-Broken Object Level Authorization"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "php",
+      "go"
+    ],
+    "description": "The system's authorization functionality does not prevent one user from gaining access to another user's data or record by modifying the key value identifying the data. This is known as Insecure Direct Object Reference (IDOR) and, in APIs, as Broken Object Level Authorization (BOLA). It occurs when a handler loads an object by an ID taken from the path, query or body and returns or modifies it without confirming that the caller owns or may access it.",
+    "prerequisites": [
+      "Object identifiers are exposed to the client in URLs, query strings, JSON bodies or headers",
+      "The attacker has a valid session, or the endpoint is unauthenticated",
+      "Identifiers are guessable or enumerable (sequential integers) or leak through other responses; random UUIDs reduce but do not remove the risk"
+    ],
+    "impact": [
+      "Horizontal privilege escalation: reading invoices, messages, medical or financial records of other users",
+      "Modification or deletion of other users' objects through PUT/PATCH/DELETE on the same key",
+      "Large-scale data scraping by iterating over the identifier space"
+    ],
+    "detection_patterns": [
+      "Route handlers that fetch by id (`Model.query.get(id)`, `findById(req.params.id)`, `repo.findById(id)`) and return the object without an owner or tenant filter",
+      "Ownership checks performed on list endpoints but not on the matching detail, update or delete endpoints",
+      "Identifiers for the acting user read from the request (`user_id` in body or query) instead of from the session",
+      "Nested resources (`/accounts/{a}/orders/{o}`) that verify access to `a` but load `o` without confirming it belongs to `a`"
+    ],
+    "remediation": [
+      "Scope every object lookup to the authenticated principal, e.g. `filter_by(id=..., owner_id=current_user.id)` or a repository method `findByIdAndOwnerId`",
+      "Take the acting user's identity only from the server-side session or verified token, never from request parameters",
+      "Return 404 for objects the caller may not access to avoid confirming their existence",
+      "Add automated tests with two users that attempt cross-account access on every object endpoint and method"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.get(\"/api/invoices/<int:invoice_id>\")\n@login_required\ndef get_invoice(invoice_id):\n    inv = Invoice.query.get_or_404(invoice_id)  # any user can read any invoice id\n    return jsonify(inv.to_dict())"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "@app.get(\"/api/invoices/<int:invoice_id>\")\n@login_required\ndef get_invoice(invoice_id):\n    inv = Invoice.query.filter_by(id=invoice_id,\n                                  owner_id=current_user.id).first_or_404()\n    return jsonify(inv.to_dict())"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-639: Authorization Bypass Through User-Controlled Key",
+        "url": "https://cwe.mitre.org/data/definitions/639.html"
+      },
+      {
+        "title": "OWASP Insecure Direct Object Reference Prevention Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Authorization Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-269-improper-privilege-management",
+    "cwe_id": "CWE-269",
+    "title": "Improper Privilege Management",
+    "cwe_name": "Improper Privilege Management",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control",
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [
+      "API5:2023-Broken Function Level Authorization"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "php",
+      "python",
+      "java",
+      "javascript"
+    ],
+    "description": "The product does not properly assign, modify, track or check privileges for an actor, creating an unintended sphere of control for that actor. In web applications this commonly appears in user and role administration: a delegated administrator can grant roles equal to or higher than their own, or role changes are not propagated to existing sessions. In system software it covers failing to drop elevated privileges after they are needed.",
+    "prerequisites": [
+      "The application supports multiple privilege levels and some users can create users, invite members or change roles",
+      "Role assignment accepts the target role from the request without comparing it with the grantor's own level",
+      "Sessions or tokens cache role information that is not refreshed when privileges change"
+    ],
+    "impact": [
+      "Vertical privilege escalation to owner, superuser or root-equivalent roles",
+      "Persistence: an attacker grants themselves or a second account a durable high-privilege role",
+      "Users keep elevated access after demotion or offboarding because existing sessions retain old roles"
+    ],
+    "detection_patterns": [
+      "Role or permission values written from request input (`$_POST['role']`, `req.body.role`) in user creation, invitation or update handlers without a hierarchy check",
+      "Endpoints that let a user modify their own role, group membership or `is_admin`/`is_staff` field",
+      "Roles stored in long-lived JWT claims or session data with no revalidation after a role change",
+      "Privileged processes that call `setuid`/`seteuid` late, never drop privileges, or regain them after dropping"
+    ],
+    "remediation": [
+      "Enforce a role hierarchy: a user may only grant roles strictly below their own, and only from an allowlist of known roles",
+      "Prevent self-modification of role and permission attributes; require a second administrator for grants of the highest roles",
+      "Invalidate or refresh sessions and tokens when a user's privileges change, and audit-log every grant and revocation",
+      "In system code, drop privileges permanently as early as possible and verify the drop succeeded"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "// Managers may invite users; the role is taken directly from the form\nif (!in_array($current['role'], ['manager', 'owner'], true)) { http_response_code(403); exit; }\n$stmt = $pdo->prepare('INSERT INTO users (email, role) VALUES (?, ?)');\n$stmt->execute([$_POST['email'], $_POST['role']]); // a manager can create an 'owner'"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "$rank = ['viewer' => 1, 'editor' => 2, 'manager' => 3, 'owner' => 4];\n$requested = $_POST['role'] ?? '';\n// Only known roles, and only roles strictly below the grantor's own level\nif (!isset($rank[$requested]) || $rank[$requested] >= ($rank[$current['role']] ?? 0)) {\n    http_response_code(403); exit;\n}\n$stmt = $pdo->prepare('INSERT INTO users (email, role) VALUES (?, ?)');\n$stmt->execute([$_POST['email'], $requested]);\naudit_log('role_granted', $current['id'], $_POST['email'], $requested);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-269: Improper Privilege Management",
+        "url": "https://cwe.mitre.org/data/definitions/269.html"
+      },
+      {
+        "title": "OWASP Authorization Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-250-execution-with-unnecessary-privileges",
+    "cwe_id": "CWE-250",
+    "title": "Execution with Unnecessary Privileges",
+    "cwe_name": "Execution with Unnecessary Privileges",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "dockerfile",
+      "python",
+      "go",
+      "java"
+    ],
+    "description": "The product performs an operation at a privilege level that is higher than the minimum level required, which creates new weaknesses or amplifies the consequences of other weaknesses. Common examples are web applications running as root inside containers, services connecting to the database as a superuser, and cloud workloads holding wildcard IAM permissions. It turns an otherwise limited bug, such as path traversal or command injection, into full host or account compromise.",
+    "prerequisites": [
+      "The process, container, database account or cloud role holds privileges beyond what its function requires",
+      "A second weakness (injection, deserialization, file write, SSRF) gives the attacker code or command execution in that context",
+      "Isolation boundaries are weak or absent: privileged containers, host mounts, shared credentials or a flat network let the elevated privileges reach other assets"
+    ],
+    "impact": [
+      "Remote code execution becomes root on the container, with a shorter path to container escape when combined with privileged mode or a mounted Docker socket",
+      "Ability to read or modify any table, drop schemas or create database users through a superuser connection",
+      "Cloud account takeover when a workload's credentials carry `*:*` style permissions",
+      "Tampering with application binaries, logs and configuration that the service should only read"
+    ],
+    "detection_patterns": [
+      "Dockerfiles without a `USER` instruction, or with `USER root`; Kubernetes pods without `runAsNonRoot: true`, or with `privileged: true` or `allowPrivilegeEscalation: true`",
+      "Containers mounting `/var/run/docker.sock` or the host root filesystem",
+      "Database connection strings using `postgres`, `root` or `sa` accounts for application traffic",
+      "IAM policies with `\"Action\": \"*\"` or `\"Resource\": \"*\"` attached to application roles"
+    ],
+    "remediation": [
+      "Run services as a dedicated unprivileged UID (`USER 10001` in the Dockerfile, `runAsNonRoot` and `readOnlyRootFilesystem` in Kubernetes)",
+      "Drop Linux capabilities (`capabilities: drop: [\"ALL\"]`) and add back only those required, such as `NET_BIND_SERVICE`",
+      "Create a least-privilege database role per service with only the DML rights it needs; keep migrations on a separate account",
+      "Scope cloud IAM roles to specific actions and resource ARNs and review them with access analysis tooling"
+    ],
+    "vulnerable_example": {
+      "language": "dockerfile",
+      "code": "FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\nRUN pip install --no-cache-dir -r requirements.txt\n# No USER instruction: gunicorn runs as root (UID 0) inside the container\nCMD [\"gunicorn\", \"-b\", \"0.0.0.0:8000\", \"app:app\"]"
+    },
+    "secure_example": {
+      "language": "dockerfile",
+      "code": "FROM python:3.12-slim\nRUN useradd --system --uid 10001 --no-create-home appuser\nWORKDIR /app\nCOPY . .\nRUN pip install --no-cache-dir -r requirements.txt\nUSER 10001\nCMD [\"gunicorn\", \"-b\", \"0.0.0.0:8000\", \"app:app\"]"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-250: Execution with Unnecessary Privileges",
+        "url": "https://cwe.mitre.org/data/definitions/250.html"
+      },
+      {
+        "title": "OWASP Docker Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-22-path-traversal",
+    "cwe_id": "CWE-22",
+    "title": "Path Traversal",
+    "cwe_name": "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+    "category": "File Handling",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "javascript",
+      "python",
+      "java",
+      "php"
+    ],
+    "description": "The product builds a file path from external input intended to identify a file under a restricted directory, but does not neutralize sequences such as `../`, absolute paths or encoded separators that resolve outside it. Joining or normalising the path is not sufficient on its own, because normalisation still allows `..` to climb above the base directory. The flaw affects download, upload, template, archive extraction and log-viewing features.",
+    "prerequisites": [
+      "A file name or path component is taken from a request parameter, header, archive entry or database value influenced by the user",
+      "The resolved path is not verified to stay inside the intended base directory",
+      "The process has read or write permission on files outside that directory"
+    ],
+    "impact": [
+      "Disclosure of source code, configuration files, private keys and `/etc/passwd`-style system files",
+      "Overwriting of application files or scripts leading to remote code execution when writes are involved",
+      "Credential theft from files such as `.env`, cloud credential files or SSH keys"
+    ],
+    "detection_patterns": [
+      "`filepath.Join(base, userInput)`, `path.join(__dirname, 'uploads', req.query.file)`, `os.path.join(base, request.args['f'])` or `new File(base, param)` followed by open/serve without a containment check",
+      "Containment checks done with `startsWith(base)` on the unresolved string, or without a trailing separator (so `/srv/uploads-old` passes)",
+      "Decoding or normalising input after validation, or validation that only strips the literal `../` once",
+      "Archive extraction loops writing `entry.getName()` / `member.name` directly to disk (Zip Slip)"
+    ],
+    "remediation": [
+      "Prefer indirect references: map a user-supplied ID to a server-side file name instead of accepting paths",
+      "Validate names with a strict allowlist (e.g. `^[A-Za-z0-9._-]+$`) or use `filepath.IsLocal` in Go 1.20+",
+      "Resolve the canonical path (`realpath`, `Path.resolve()`, `getCanonicalPath()`) and require it to start with the canonical base directory plus a separator",
+      "Use APIs that confine access to a directory, such as Go 1.24 `os.Root`, `res.sendFile(name, { root })` in Express, or `send_from_directory` in Flask"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "func download(w http.ResponseWriter, r *http.Request) {\n    name := r.URL.Query().Get(\"file\")\n    // filepath.Join cleans the path but \"../../etc/passwd\" still escapes the base\n    http.ServeFile(w, r, filepath.Join(\"/srv/uploads\", name))\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "func download(w http.ResponseWriter, r *http.Request) {\n    name := r.URL.Query().Get(\"file\")\n    if !filepath.IsLocal(name) { // Go 1.20+: rejects \"..\", absolute and empty paths\n        http.Error(w, \"invalid file name\", http.StatusBadRequest)\n        return\n    }\n    http.ServeFile(w, r, filepath.Join(\"/srv/uploads\", name))\n}"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2021-41773",
+        "summary": "Apache HTTP Server 2.4.49 path normalization flaw allowing path traversal outside the document root, and RCE when CGI was enabled"
+      },
+      {
+        "id": "CVE-2018-13379",
+        "summary": "Fortinet FortiOS SSL VPN web portal path traversal allowing unauthenticated download of system files containing session credentials"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+        "url": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      {
+        "title": "OWASP Path Traversal attack description",
+        "url": "https://owasp.org/www-community/attacks/Path_Traversal"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-59-link-following",
+    "cwe_id": "CWE-59",
+    "title": "Symlink Following",
+    "cwe_name": "Improper Link Resolution Before File Access ('Link Following')",
+    "category": "File Handling",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "go",
+      "c",
+      "java"
+    ],
+    "description": "The product opens or modifies a file by name without checking whether the name resolves to a symbolic link, hard link or Windows junction that points to a file outside the intended control sphere. A lower-privileged attacker who can create links in a shared or writable directory can redirect a privileged process's read or write to an arbitrary target. It is frequently combined with predictable temporary file names or archive extraction of untrusted symlink entries.",
+    "prerequisites": [
+      "A privileged process accesses files in a directory where the attacker can create entries, such as `/tmp`, an upload directory or a shared volume",
+      "The file name is predictable or the attacker can supply an archive containing link entries",
+      "The process opens the path without `O_NOFOLLOW`, `O_EXCL` or a post-open identity check"
+    ],
+    "impact": [
+      "Overwrite or truncation of sensitive files such as `/etc/passwd`, `authorized_keys` or application binaries",
+      "Disclosure of files readable by the privileged process but not by the attacker",
+      "Local privilege escalation through changed permissions or ownership on the link target"
+    ],
+    "detection_patterns": [
+      "`open('/tmp/<fixed-name>', 'w')`, `os.chmod` or `os.chown` on predictable paths in world-writable directories by root-run jobs",
+      "Use of `os.path.exists()` or `stat()` followed by `open()` (time-of-check/time-of-use) instead of atomic `O_CREAT|O_EXCL`",
+      "Archive extraction (`tarfile.extractall`, `zipfile`, Go `archive/tar`) that recreates symlink entries and then writes through them",
+      "File servers that validate the requested path lexically but follow symlinks placed inside the served directory"
+    ],
+    "remediation": [
+      "Create temporary files with `tempfile.mkstemp`/`NamedTemporaryFile`, `os.CreateTemp` or `O_CREAT|O_EXCL`, in a directory owned by the service",
+      "Open with `O_NOFOLLOW` where available and use `lstat`/`os.Lstat` or `fstat` to verify the opened file is a regular file owned by the expected user",
+      "Resolve with `realpath`/`EvalSymlinks` and check containment after resolution; use `os.Root` in Go 1.24 or `tarfile` extraction filters (`filter='data'`) in Python 3.12+",
+      "Drop privileges before touching user-writable locations"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "# Runs as root from cron; /tmp is world-writable and the name is predictable\npath = \"/tmp/backup-report.txt\"\nwith open(path, \"w\") as f:   # follows a symlink planted at this path\n    f.write(report)\nos.chmod(path, 0o644)"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import os, tempfile\n# Random name created with O_EXCL in a directory only the service can write to\nfd, path = tempfile.mkstemp(prefix=\"backup-report-\", dir=\"/var/lib/backup\")\nwith os.fdopen(fd, \"w\") as f:\n    f.write(report)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-59: Improper Link Resolution Before File Access ('Link Following')",
+        "url": "https://cwe.mitre.org/data/definitions/59.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-918-server-side-request-forgery",
+    "cwe_id": "CWE-918",
+    "title": "Server-Side Request Forgery (SSRF)",
+    "cwe_name": "Server-Side Request Forgery (SSRF)",
+    "category": "Server-Side Request Forgery",
+    "owasp_top10_2021": [
+      "A10:2021-Server-Side Request Forgery"
+    ],
+    "owasp_api_2023": [
+      "API7:2023-Server Side Request Forgery"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "go",
+      "php"
+    ],
+    "description": "The web server receives a URL or similar request from an upstream component and retrieves its contents without sufficiently ensuring that the request is sent to the expected destination. Attackers use the server as a proxy to reach internal services, cloud metadata endpoints and localhost-only admin interfaces that are not reachable from the internet. Features such as URL previews, webhooks, PDF renderers, image fetchers and import-from-URL are common entry points.",
+    "prerequisites": [
+      "The application fetches a URL, host or path that is fully or partly controlled by the user",
+      "The server has network access to internal services, cloud metadata (`169.254.169.254`) or loopback interfaces",
+      "Destination validation is missing, done only on the string, or bypassable through redirects or DNS rebinding"
+    ],
+    "impact": [
+      "Theft of cloud instance credentials from metadata services, leading to cloud account compromise",
+      "Access to internal APIs, databases and admin consoles (Redis, Elasticsearch, Kubernetes API) behind the firewall",
+      "Internal network port scanning and service fingerprinting",
+      "Remote code execution when an internal service accepts unauthenticated commands"
+    ],
+    "detection_patterns": [
+      "`requests.get(request.args['url'])`, `axios.get(req.body.url)`, `new URL(param).openStream()`, `http.Get(r.FormValue(\"url\"))` or `file_get_contents($_GET['url'])`",
+      "Host validation using substring or prefix checks (`'example.com' in url`, `url.startsWith('https://example.com')`) that `example.com.evil.net` or `example.com@evil.net` defeat",
+      "HTTP clients that follow redirects by default after validating only the first URL",
+      "Webhook or callback URL fields stored and later fetched by background workers without re-validation"
+    ],
+    "remediation": [
+      "Allowlist destination schemes, hosts and ports; avoid accepting full URLs when an identifier would do",
+      "Resolve the hostname, reject private, loopback, link-local and reserved addresses, and connect to the validated IP to prevent DNS rebinding",
+      "Disable automatic redirects or re-validate every redirect target",
+      "Route outbound requests through an egress proxy and enforce IMDSv2 or equivalent metadata protections; apply network policies that block internal ranges from fetcher services"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.route(\"/preview\")\ndef preview():\n    url = request.args[\"url\"]\n    # http://169.254.169.254/latest/meta-data/ or http://localhost:6379 are reachable\n    r = requests.get(url, timeout=5)\n    return r.text[:500]"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "ALLOWED_HOSTS = {\"images.example-cdn.com\", \"api.partner.example\"}\n\n@app.route(\"/preview\")\ndef preview():\n    u = urlparse(request.args.get(\"url\", \"\"))\n    if u.scheme != \"https\" or u.hostname not in ALLOWED_HOSTS:\n        abort(400)\n    ip = ipaddress.ip_address(socket.gethostbyname(u.hostname))\n    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:\n        abort(400)\n    return requests.get(u.geturl(), timeout=5, allow_redirects=False).text[:500]"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2021-26855",
+        "summary": "Microsoft Exchange Server SSRF (ProxyLogon) allowing unauthenticated attackers to authenticate as the Exchange server"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-918: Server-Side Request Forgery (SSRF)",
+        "url": "https://cwe.mitre.org/data/definitions/918.html"
+      },
+      {
+        "title": "OWASP Server-Side Request Forgery Prevention Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-352-cross-site-request-forgery",
+    "cwe_id": "CWE-352",
+    "title": "Cross-Site Request Forgery (CSRF)",
+    "cwe_name": "Cross-Site Request Forgery (CSRF)",
+    "category": "Web Security",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "php"
+    ],
+    "description": "The web application does not, or cannot, sufficiently verify whether a request was intentionally provided by the user who submitted it. Because browsers attach cookies automatically, a page on another site can cause a logged-in victim's browser to send a state-changing request that the server accepts as genuine. It affects applications that authenticate with cookies or other ambient credentials such as HTTP Basic or client certificates.",
+    "prerequisites": [
+      "The application uses cookie-based or other browser-attached authentication",
+      "A state-changing endpoint accepts requests without an unpredictable anti-CSRF token or equivalent origin verification",
+      "The victim visits an attacker-controlled page while logged in, and the session cookie is sent on cross-site requests (`SameSite=None`, or a GET/Lax-compatible request)"
+    ],
+    "impact": [
+      "Unwanted actions in the victim's name: changing email or password, transferring funds, adding API keys",
+      "Account takeover when the email or recovery address can be changed via CSRF",
+      "Administrative actions performed through an administrator's browser"
+    ],
+    "detection_patterns": [
+      "Django views decorated with `@csrf_exempt`, `CsrfViewMiddleware` removed from `MIDDLEWARE`, or Spring Security `csrf().disable()` / `csrf(c -> c.disable())` in browser-facing apps",
+      "State-changing operations exposed on GET routes (e.g. `GET /account/delete`)",
+      "Express apps using `express-session` or cookie auth with no CSRF token middleware and no `Origin` header check",
+      "Forms rendered without `{% csrf_token %}` or hidden token fields, and AJAX calls that do not send an `X-CSRFToken` header"
+    ],
+    "remediation": [
+      "Use the framework's synchronizer token protection (Django `CsrfViewMiddleware`, Spring Security CSRF, Laravel `VerifyCsrfToken`) and do not exempt cookie-authenticated endpoints",
+      "Restrict state changes to POST/PUT/PATCH/DELETE and verify `Origin` or `Sec-Fetch-Site` headers as defense in depth",
+      "Set session cookies with `SameSite=Lax` or `Strict` as an additional layer, not as the only control",
+      "Require re-authentication for high-risk actions such as changing email, password or payout details"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@csrf_exempt              # disables Django's CSRF protection for this view\n@login_required\ndef change_email(request):\n    request.user.email = request.POST[\"email\"]\n    request.user.save()\n    return redirect(\"profile\")"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "@require_POST\n@login_required\ndef change_email(request):    # CsrfViewMiddleware validates the csrfmiddlewaretoken\n    form = EmailForm(request.POST)\n    if not form.is_valid():\n        return HttpResponseBadRequest()\n    request.user.email = form.cleaned_data[\"email\"]\n    request.user.save()\n    return redirect(\"profile\")"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-352: Cross-Site Request Forgery (CSRF)",
+        "url": "https://cwe.mitre.org/data/definitions/352.html"
+      },
+      {
+        "title": "OWASP Cross-Site Request Forgery Prevention Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-601-open-redirect",
+    "cwe_id": "CWE-601",
+    "title": "Open Redirect",
+    "cwe_name": "URL Redirection to Untrusted Site ('Open Redirect')",
+    "category": "Web Security",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "php",
+      "javascript",
+      "python",
+      "java"
+    ],
+    "description": "A web application accepts a user-controlled input that specifies a link to an external site and uses that link in a redirect. Because the initial link points to the trusted domain, phishing pages behind it inherit the trust, and in OAuth or SSO flows an open redirect can leak authorization codes or tokens to the attacker. It typically appears in post-login `next`/`returnUrl` parameters and logout or tracking endpoints.",
+    "prerequisites": [
+      "A redirect target is read from a query parameter, form field, header or stored value",
+      "The target is not restricted to relative paths or an allowlist of trusted hosts",
+      "The attacker can deliver a crafted link to victims, for example by email, chat or as an OAuth `redirect_uri`/`state` value"
+    ],
+    "impact": [
+      "Credible phishing links that start with the legitimate domain",
+      "Theft of OAuth authorization codes or access tokens when the redirect is chained into an authorization flow",
+      "Bypass of SSRF or URL allowlists that trust the vulnerable domain"
+    ],
+    "detection_patterns": [
+      "`res.redirect(req.query.next)`, `redirect(request.args.get('next'))`, `header('Location: ' . $_GET['url'])` or `response.sendRedirect(request.getParameter(\"returnUrl\"))`",
+      "Validation that checks `startsWith('/')` only, which allows protocol-relative `//evil.example` and `/\\evil.example`",
+      "Host checks using `contains` or `endsWith('example.com')`, which `evil-example.com` passes",
+      "JavaScript sinks such as `location.href = params.get('redirect')`"
+    ],
+    "remediation": [
+      "Prefer server-side mappings: accept a short key and look up the destination in a fixed table",
+      "Allow only relative paths that start with a single `/` and are not followed by `/` or `\\`, or parse the URL and compare the host against an exact allowlist",
+      "Fall back to a safe default page when validation fails, instead of returning the user-supplied value",
+      "For OAuth clients and servers, register exact redirect URIs and do not allow wildcard matching"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "// login.php?next=https://evil.example/fake-login\nif (login($_POST['user'], $_POST['pass'])) {\n    header('Location: ' . $_GET['next']);\n    exit;\n}"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "$next = $_GET['next'] ?? '/dashboard';\n// Same-site relative paths only: one leading \"/\", not followed by \"/\" or a backslash\nif (!preg_match('#^/(?![/\\\\\\\\])#', $next)) {\n    $next = '/dashboard';\n}\nif (login($_POST['user'], $_POST['pass'])) {\n    header('Location: ' . $next);\n    exit;\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-601: URL Redirection to Untrusted Site ('Open Redirect')",
+        "url": "https://cwe.mitre.org/data/definitions/601.html"
+      },
+      {
+        "title": "OWASP Unvalidated Redirects and Forwards Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-942-permissive-cors-policy",
+    "cwe_id": "CWE-942",
+    "title": "Permissive CORS Policy",
+    "cwe_name": "Permissive Cross-domain Security Policy with Untrusted Domains",
+    "category": "Web Security",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "javascript",
+      "python",
+      "java",
+      "go"
+    ],
+    "description": "The product uses a cross-domain policy file or CORS configuration that includes domains that should not be trusted. The most damaging form reflects the request's `Origin` header into `Access-Control-Allow-Origin` while also sending `Access-Control-Allow-Credentials: true`, which lets any website read authenticated API responses through the victim's browser. Allowing the `null` origin or matching origins with loose regular expressions has the same effect.",
+    "prerequisites": [
+      "The API authenticates browsers with cookies or other credentials that are sent on cross-origin requests",
+      "The CORS policy reflects arbitrary origins, trusts `null`, or uses an origin pattern the attacker can satisfy",
+      "The victim visits an attacker-controlled page while authenticated"
+    ],
+    "impact": [
+      "Cross-origin reading of sensitive API responses such as profile data, API keys or CSRF tokens",
+      "Account takeover when tokens or secrets are returned by readable endpoints",
+      "Ability to perform authenticated state-changing requests and read their results"
+    ],
+    "detection_patterns": [
+      "`Access-Control-Allow-Origin` set from `req.headers.origin` (or `request.headers['Origin']`) together with `Access-Control-Allow-Credentials: true`",
+      "`cors({ origin: true, credentials: true })` in Express, `CORS_ALLOW_ALL_ORIGINS = True` with `CORS_ALLOW_CREDENTIALS = True` in django-cors-headers, or `allowedOriginPatterns(\"*\")` with `allowCredentials(true)` in Spring",
+      "`Access-Control-Allow-Origin: *` used with credentials (browsers refuse this combination, which often leads developers to switch to origin reflection)",
+      "Origin checks with unanchored regex or `endsWith('example.com')` that accept `attacker-example.com`, or an allowlist that includes `null`"
+    ],
+    "remediation": [
+      "Use an explicit allowlist of exact origins (scheme, host and port) and return the origin only when it matches",
+      "Enable `Access-Control-Allow-Credentials` only for the specific origins and routes that need it",
+      "Never trust the `null` origin; add `Vary: Origin` when the response depends on the request origin",
+      "Prefer token authentication in an `Authorization` header for cross-origin APIs, so a CORS mistake does not expose cookie-authenticated sessions"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "app.use((req, res, next) => {\n  // Reflects any Origin and allows cookies: any site can read authenticated responses\n  res.set('Access-Control-Allow-Origin', req.headers.origin);\n  res.set('Access-Control-Allow-Credentials', 'true');\n  next();\n});"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "const cors = require('cors');\nconst ALLOWED = new Set(['https://app.example.com', 'https://admin.example.com']);\napp.use(cors({\n  origin: (origin, cb) => cb(null, origin !== undefined && ALLOWED.has(origin)),\n  credentials: true,\n}));"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-942: Permissive Cross-domain Security Policy with Untrusted Domains",
+        "url": "https://cwe.mitre.org/data/definitions/942.html"
+      },
+      {
+        "title": "OWASP HTML5 Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-1021-clickjacking",
+    "cwe_id": "CWE-1021",
+    "title": "Clickjacking",
+    "cwe_name": "Improper Restriction of Rendered UI Layers or Frames",
+    "category": "Web Security",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "java",
+      "javascript",
+      "python",
+      "php"
+    ],
+    "description": "The web application does not restrict, or incorrectly restricts, whether its pages can be rendered inside frames of other origins. An attacker embeds a sensitive page in an invisible iframe on their own site and tricks the victim into clicking buttons that perform actions in the victim's authenticated session. This is called clickjacking or UI redressing and is prevented with `Content-Security-Policy: frame-ancestors` and `X-Frame-Options`.",
+    "prerequisites": [
+      "Sensitive pages can be loaded in a cross-origin iframe because neither `frame-ancestors` nor `X-Frame-Options` is sent",
+      "The action can be completed with one or a few clicks and no re-authentication",
+      "The victim's session cookie is sent in third-party frame contexts (e.g. `SameSite=None`)"
+    ],
+    "impact": [
+      "Unwanted actions such as changing settings, approving OAuth grants, deleting data or making purchases",
+      "Enabling of camera, microphone or other permissions granted to the framed origin",
+      "Keystroke capture when combined with overlaid input fields"
+    ],
+    "detection_patterns": [
+      "Spring Security `headers(h -> h.frameOptions(f -> f.disable()))` or `frameOptions().disable()`",
+      "Helmet configured with `frameguard: false` or a CSP without `frame-ancestors`; Django `@xframe_options_exempt` or `XFrameOptionsMiddleware` removed",
+      "`X-Frame-Options: ALLOW-FROM`, which modern browsers ignore, used as the only defense",
+      "Absence of both `X-Frame-Options` and `frame-ancestors` in responses for authenticated pages"
+    ],
+    "remediation": [
+      "Send `Content-Security-Policy: frame-ancestors 'none'` (or `'self'` plus explicit partner origins) on all HTML responses",
+      "Also send `X-Frame-Options: DENY` or `SAMEORIGIN` for older browsers",
+      "Where framing by partners is required, list exact origins in `frame-ancestors` rather than disabling the header",
+      "Require confirmation or re-authentication for high-impact one-click actions"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "@Bean\nSecurityFilterChain filterChain(HttpSecurity http) throws Exception {\n    http.authorizeHttpRequests(a -> a.anyRequest().authenticated())\n        // Disabled to allow one partner to embed a widget; now every site can frame the app\n        .headers(h -> h.frameOptions(f -> f.disable()));\n    return http.build();\n}"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "@Bean\nSecurityFilterChain filterChain(HttpSecurity http) throws Exception {\n    http.authorizeHttpRequests(a -> a.anyRequest().authenticated())\n        .headers(h -> h\n            .frameOptions(f -> f.deny())\n            .contentSecurityPolicy(c -> c.policyDirectives(\"frame-ancestors 'none'\")));\n    return http.build();\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-1021: Improper Restriction of Rendered UI Layers or Frames",
+        "url": "https://cwe.mitre.org/data/definitions/1021.html"
+      },
+      {
+        "title": "OWASP Clickjacking Defense Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Clickjacking_Defense_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-287-improper-authentication",
+    "cwe_id": "CWE-287",
+    "title": "Improper Authentication",
+    "cwe_name": "Improper Authentication",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "critical",
+    "languages": [
+      "javascript",
+      "python",
+      "java",
+      "php",
+      "go"
+    ],
+    "description": "When an actor claims to have a given identity, the product does not prove or insufficiently proves that the claim is correct. In practice this arises from logic errors in login code: credential checks that always evaluate to true, comparisons that accept empty or null values, LDAP binds that succeed with an empty password, or alternate login paths that skip verification. The result is that an attacker is treated as a user without knowing that user's credentials.",
+    "prerequisites": [
+      "The attacker can reach a login, token or SSO endpoint",
+      "The verification logic contains a flaw such as an un-awaited asynchronous check, loose comparison, or acceptance of empty credentials",
+      "The attacker knows or can enumerate a target account identifier"
+    ],
+    "impact": [
+      "Complete account takeover without knowledge of the password",
+      "Administrative access when an administrator account is targeted",
+      "Downstream compromise of all data and functions available to the impersonated identity"
+    ],
+    "detection_patterns": [
+      "Asynchronous password checks used without `await` in a condition, e.g. `if (bcrypt.compare(pw, hash))`, where the Promise is always truthy",
+      "PHP loose comparisons (`==`) between hashes or tokens, or `strcmp()` results compared with `==` where an array input yields `NULL`",
+      "LDAP authentication that binds with a user DN and an empty password, which many directories accept as an unauthenticated bind",
+      "Login handlers that return success on exception paths, or accept a user ID or `remember_me` cookie value without verifying a server-side secret"
+    ],
+    "remediation": [
+      "Use the framework's maintained authentication components (Spring Security, Django auth, Passport) instead of hand-written login logic",
+      "Await and strictly check the boolean result of password verification; reject empty passwords before any directory bind",
+      "Use constant-time, strict comparisons (`hash_equals`, `hmac.compare_digest`, `MessageDigest.isEqual`) for secrets",
+      "Add negative tests: wrong password, empty password, missing fields and array-typed fields must all fail authentication"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "app.post('/login', async (req, res) => {\n  const user = await User.findOne({ email: req.body.email });\n  // bcrypt.compare returns a Promise; without await the condition is always truthy\n  if (user && bcrypt.compare(req.body.password, user.passwordHash)) {\n    req.session.userId = user.id;\n    return res.redirect('/dashboard');\n  }\n  res.status(401).send('Invalid credentials');\n});"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "app.post('/login', async (req, res) => {\n  const user = await User.findOne({ email: String(req.body.email) });\n  const ok = user !== null &&\n    (await bcrypt.compare(String(req.body.password), user.passwordHash)) === true;\n  if (!ok) return res.status(401).send('Invalid email or password');\n  req.session.userId = user.id;\n  res.redirect('/dashboard');\n});"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-287: Improper Authentication",
+        "url": "https://cwe.mitre.org/data/definitions/287.html"
+      },
+      {
+        "title": "OWASP Authentication Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-306-missing-authentication-critical-function",
+    "cwe_id": "CWE-306",
+    "title": "Missing Authentication for Critical Function",
+    "cwe_name": "Missing Authentication for Critical Function",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "critical",
+    "languages": [
+      "go",
+      "python",
+      "javascript",
+      "java"
+    ],
+    "description": "The product does not perform any authentication for functionality that requires a provable user identity or consumes a significant amount of resources. It typically affects management, maintenance, debug and machine-to-machine endpoints that developers assumed were only reachable from a trusted network. Once the network assumption fails, through misconfiguration, SSRF or a flat network, anyone can invoke them.",
+    "prerequisites": [
+      "A critical function (administration, configuration, data export, command execution, cache or database reset) is exposed over the network",
+      "No authentication is required, on the assumption that only internal clients can reach it",
+      "The attacker can reach the listener directly or through another weakness such as SSRF"
+    ],
+    "impact": [
+      "Unauthenticated administrative control of the application or device",
+      "Bulk data exposure through export or debug endpoints",
+      "Service disruption through reset, shutdown or cache-flush functions",
+      "Remote code execution when the exposed function runs commands or loads code"
+    ],
+    "detection_patterns": [
+      "Handlers for paths like `/admin/*`, `/internal/*`, `/debug/*`, `/actuator/*` or `/metrics` registered on the public listener without auth middleware",
+      "Spring Boot `management.endpoints.web.exposure.include=*` without securing actuator endpoints",
+      "Services binding to `0.0.0.0` with comments such as 'internal only' or 'called by cron'",
+      "Message queue consumers, gRPC services or webhooks that act on requests without verifying the caller's identity"
+    ],
+    "remediation": [
+      "Require authentication on every function that changes state or returns non-public data, including internal and machine-to-machine endpoints",
+      "Use service identities (mTLS, signed service tokens, cloud workload identity) for internal callers instead of network location",
+      "Serve management and debug endpoints on a separate listener bound to localhost or a private interface, and disable them in production when not needed",
+      "Keep a route inventory and test that each route rejects unauthenticated requests"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "mux := http.NewServeMux()\nmux.HandleFunc(\"/healthz\", health)\n// \"Internal\" maintenance endpoints, reachable by anyone who can reach the port\nmux.HandleFunc(\"/admin/flush-cache\", flushCache)\nmux.HandleFunc(\"/admin/users/export\", exportUsers)\nlog.Fatal(http.ListenAndServe(\":8080\", mux))"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "mux := http.NewServeMux()\nmux.HandleFunc(\"/healthz\", health)\nadmin := http.NewServeMux()\nadmin.HandleFunc(\"/admin/flush-cache\", flushCache)\nadmin.HandleFunc(\"/admin/users/export\", exportUsers)\nmux.Handle(\"/admin/\", requireAuth(requireRole(\"admin\", admin)))\nlog.Fatal(http.ListenAndServe(\":8080\", mux))"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2022-1388",
+        "summary": "F5 BIG-IP iControl REST authentication bypass allowing unauthenticated attackers to execute system commands"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-306: Missing Authentication for Critical Function",
+        "url": "https://cwe.mitre.org/data/definitions/306.html"
+      },
+      {
+        "title": "OWASP Authentication Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-307-excessive-authentication-attempts",
+    "cwe_id": "CWE-307",
+    "title": "Brute Force / Missing Login Rate Limiting",
+    "cwe_name": "Improper Restriction of Excessive Authentication Attempts",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication",
+      "API4:2023-Unrestricted Resource Consumption"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "php",
+      "go"
+    ],
+    "description": "The product does not implement sufficient measures to prevent multiple failed authentication attempts within a short time frame. Without per-account and per-source throttling, attackers can run online password guessing, password spraying and credential stuffing, or brute-force short secrets such as 6-digit OTP and reset codes. Limits are often applied to the web login but forgotten on API, mobile, OTP and password-reset endpoints.",
+    "prerequisites": [
+      "An authentication endpoint (password, OTP, PIN, reset code, API key) accepts unlimited attempts",
+      "The attacker has candidate credentials such as leaked password lists or knows the code space is small",
+      "There is no CAPTCHA, lockout, backoff or anomaly detection on repeated failures"
+    ],
+    "impact": [
+      "Account takeover through credential stuffing with breached password lists",
+      "Bypass of MFA by brute-forcing 4–6 digit codes",
+      "Resource exhaustion from high-volume login traffic and expensive password hashing"
+    ],
+    "detection_patterns": [
+      "Login, `/otp/verify`, `/reset/confirm` and token endpoints with no rate-limit decorator or middleware (e.g. no `flask-limiter`, `express-rate-limit`, Spring/Bucket4j or gateway limit)",
+      "Failed-attempt counters stored only in the client session or cookie, which the attacker can discard",
+      "Rate limits keyed only on IP address, which distributed attacks bypass, or only on username, which spraying bypasses",
+      "OTP codes that remain valid after repeated wrong guesses"
+    ],
+    "remediation": [
+      "Throttle by both source (IP, device) and target account, with progressive delays or temporary lockout after repeated failures",
+      "Invalidate OTP and reset codes after a small number of wrong attempts (for example 5)",
+      "Add bot detection or CAPTCHA after suspicious patterns, and check passwords against breached-password lists",
+      "Log and alert on failed-login spikes; return `429 Too Many Requests` with `Retry-After` when limited"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.post(\"/login\")\ndef login():\n    user = User.query.filter_by(email=request.form[\"email\"]).first()\n    if user and check_password_hash(user.pw_hash, request.form[\"password\"]):\n        login_user(user)\n        return redirect(\"/\")\n    return \"Invalid credentials\", 401   # unlimited attempts per account and per IP"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "limiter = Limiter(get_remote_address, app=app)\n\n@app.post(\"/login\")\n@limiter.limit(\"5 per minute;50 per hour\")          # per source IP\ndef login():\n    email = request.form[\"email\"].strip().lower()\n    if failures.count(email, window=900) >= 10:      # per-account counter in Redis\n        return \"Too many attempts, try again later\", 429\n    user = User.query.filter_by(email=email).first()\n    if not (user and check_password_hash(user.pw_hash, request.form[\"password\"])):\n        failures.add(email); return \"Invalid credentials\", 401\n    failures.clear(email); login_user(user); return redirect(\"/\")"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-307: Improper Restriction of Excessive Authentication Attempts",
+        "url": "https://cwe.mitre.org/data/definitions/307.html"
+      },
+      {
+        "title": "OWASP Authentication Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Credential Stuffing Prevention Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Credential_Stuffing_Prevention_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-521-weak-password-requirements",
+    "cwe_id": "CWE-521",
+    "title": "Weak Password Requirements",
+    "cwe_name": "Weak Password Requirements",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "javascript",
+      "python",
+      "java",
+      "php"
+    ],
+    "description": "The product does not require that users have strong passwords, which makes it easier for attackers to compromise user accounts. Weak policies include short minimum lengths, no check against common or breached passwords, and low maximum lengths that prevent passphrases. Current guidance such as NIST SP 800-63B favours length and blocklist checks over composition rules and periodic forced rotation.",
+    "prerequisites": [
+      "The registration, password change or reset flow accepts short, common or previously breached passwords",
+      "The attacker can attempt logins online or has obtained password hashes for offline cracking",
+      "Users choose passwords under the minimum the system enforces, so a large share of accounts fall within common-password dictionaries"
+    ],
+    "impact": [
+      "Accounts compromised by guessing, password spraying or dictionary attacks",
+      "Faster offline cracking of leaked hashes",
+      "Credential stuffing success where users reuse breached passwords"
+    ],
+    "detection_patterns": [
+      "Password validators that only check `length >= 6` or `>= 8` and nothing else",
+      "Maximum length limits below 64 characters, or silent truncation of passwords",
+      "Django projects with an empty `AUTH_PASSWORD_VALIDATORS` list; no use of a breached-password check",
+      "Validation performed only in client-side JavaScript or HTML `minlength` attributes"
+    ],
+    "remediation": [
+      "Enforce a minimum length (at least 8, preferably 12 or more) and allow at least 64 characters including spaces and Unicode",
+      "Reject passwords found in common-password and breached-password lists, for example via the Have I Been Pwned k-anonymity range API",
+      "Reject passwords containing the username or email local part; avoid arbitrary composition rules and forced periodic rotation",
+      "Validate on the server for every flow that sets a password (registration, change, reset, admin-created accounts)"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "function validatePassword(pw) {\n  // 6 characters minimum, no blocklist, and passphrases over 16 chars are rejected\n  return typeof pw === 'string' && pw.length >= 6 && pw.length <= 16;\n}"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "const COMMON = loadPasswordBlocklist('common-and-breached.txt');\nfunction validatePassword(pw, user) {\n  if (typeof pw !== 'string' || pw.length < 12 || pw.length > 128) return false;\n  const lower = pw.toLowerCase();\n  if (COMMON.has(lower)) return false;\n  if (lower.includes(user.email.split('@')[0].toLowerCase())) return false;\n  return true; // length plus blocklist, no composition rules (NIST SP 800-63B)\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-521: Weak Password Requirements",
+        "url": "https://cwe.mitre.org/data/definitions/521.html"
+      },
+      {
+        "title": "OWASP Authentication Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-620-unverified-password-change",
+    "cwe_id": "CWE-620",
+    "title": "Unverified Password Change",
+    "cwe_name": "Unverified Password Change",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "php",
+      "python",
+      "javascript",
+      "java"
+    ],
+    "description": "When setting a new password for a user, the product does not require knowledge of the original password or another form of authentication. Anyone who briefly controls the session, for example through XSS, CSRF, session hijacking or an unlocked shared computer, can therefore set a new password and lock the real owner out. Variants include admin APIs and password-change endpoints that accept a target user ID from the request.",
+    "prerequisites": [
+      "The attacker controls an authenticated session or can forge requests within it",
+      "The password-change endpoint does not ask for the current password or a fresh second factor",
+      "Existing sessions are not revoked after the change, so the attacker's own session keeps working while the owner is locked out"
+    ],
+    "impact": [
+      "Persistent account takeover that survives the end of the hijacked session",
+      "Lock-out of the legitimate user",
+      "Escalation of a temporary weakness such as XSS or CSRF into full account compromise"
+    ],
+    "detection_patterns": [
+      "Password-update handlers that read only `new_password` (and perhaps `confirm_password`) and write it for the session user",
+      "Change-password endpoints that accept `user_id` from the request body rather than using the session identity",
+      "No session invalidation or notification after a password change",
+      "Account-settings APIs that allow changing email and password in one request without re-authentication"
+    ],
+    "remediation": [
+      "Require the current password (or a recent MFA step-up) before setting a new password",
+      "Take the user identity from the session only; protect the endpoint against CSRF",
+      "After a successful change, invalidate other sessions and tokens and notify the user by email",
+      "Apply the same password strength rules as registration"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "// POST /account/password: a valid session alone is enough to set a new password\n$hash = password_hash($_POST['new_password'], PASSWORD_DEFAULT);\n$pdo->prepare('UPDATE users SET pw_hash = ? WHERE id = ?')\n    ->execute([$hash, $_SESSION['uid']]);"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "$stmt = $pdo->prepare('SELECT pw_hash FROM users WHERE id = ?');\n$stmt->execute([$_SESSION['uid']]);\nif (!password_verify($_POST['current_password'] ?? '', (string) $stmt->fetchColumn())) {\n    http_response_code(403); exit('Current password is incorrect');\n}\n$hash = password_hash($_POST['new_password'], PASSWORD_DEFAULT);\n$pdo->prepare('UPDATE users SET pw_hash = ? WHERE id = ?')->execute([$hash, $_SESSION['uid']]);\nsession_regenerate_id(true);\nrevoke_other_sessions($_SESSION['uid']);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-620: Unverified Password Change",
+        "url": "https://cwe.mitre.org/data/definitions/620.html"
+      },
+      {
+        "title": "OWASP Authentication Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-640-weak-password-recovery",
+    "cwe_id": "CWE-640",
+    "title": "Weak Password Recovery Mechanism",
+    "cwe_name": "Weak Password Recovery Mechanism for Forgotten Password",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "python",
+      "javascript",
+      "php",
+      "java"
+    ],
+    "description": "The product contains a mechanism for users to recover or change their passwords without knowing the original password, but the mechanism is weak. Typical weaknesses are guessable or non-expiring reset tokens, reset links built from the attacker-controllable `Host` header, security questions with public answers, and responses that reveal whether an account exists. Because the reset flow bypasses the password, it is often the easiest path to account takeover.",
+    "prerequisites": [
+      "The attacker knows or can guess a victim's email address or username",
+      "Reset tokens are predictable, short, long-lived or reusable, or the reset link host is taken from the request",
+      "The reset endpoint is not rate limited"
+    ],
+    "impact": [
+      "Account takeover by guessing or intercepting reset tokens",
+      "Token theft through password-reset poisoning when the emailed link points to an attacker-controlled host",
+      "User enumeration through different responses for existing and non-existing accounts"
+    ],
+    "detection_patterns": [
+      "Reset tokens generated with `math/rand`, `random.randint`, `Math.random()`, timestamps or hashes of the email",
+      "Reset URLs built from `r.Host`, `request.get_host()`, `$_SERVER['HTTP_HOST']` or `req.headers.host`",
+      "Tokens stored in plaintext without an expiry column or not cleared after use",
+      "Distinct error messages such as 'No account with that email' on the forgot-password form"
+    ],
+    "remediation": [
+      "Generate at least 128 bits of randomness with a CSPRNG (`crypto/rand`, `secrets.token_urlsafe`, `crypto.randomBytes`) and store only a hash of the token",
+      "Make tokens single-use and short-lived (for example 15–60 minutes), and invalidate them on password change",
+      "Build links from a configured canonical base URL, never from request headers",
+      "Return the same response whether or not the account exists, rate limit the endpoint, and invalidate existing sessions after a reset"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "func forgot(w http.ResponseWriter, r *http.Request) {\n    u, err := users.ByEmail(r.FormValue(\"email\"))\n    if err != nil { http.Error(w, \"No account with that email\", 404); return } // enumeration\n    token := fmt.Sprintf(\"%06d\", mathrand.Intn(1000000)) // guessable, never expires\n    users.SetResetToken(u.ID, token)\n    mail.Send(u.Email, \"https://\"+r.Host+\"/reset?token=\"+token) // Host header is attacker-set\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "func forgot(w http.ResponseWriter, r *http.Request) {\n    if u, err := users.ByEmail(r.FormValue(\"email\")); err == nil {\n        raw := make([]byte, 32)\n        if _, err := cryptorand.Read(raw); err != nil { http.Error(w, \"error\", 500); return }\n        token := base64.RawURLEncoding.EncodeToString(raw)\n        users.StoreResetToken(u.ID, sha256Hex(token), time.Now().Add(30*time.Minute)) // hashed, single use\n        mail.Send(u.Email, cfg.PublicBaseURL+\"/reset?token=\"+token)\n    }\n    fmt.Fprint(w, \"If that address is registered, a reset link has been sent.\")\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-640: Weak Password Recovery Mechanism for Forgotten Password",
+        "url": "https://cwe.mitre.org/data/definitions/640.html"
+      },
+      {
+        "title": "OWASP Forgot Password Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-384-session-fixation",
+    "cwe_id": "CWE-384",
+    "title": "Session Fixation",
+    "cwe_name": "Session Fixation",
+    "category": "Session Management",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "java",
+      "php",
+      "javascript",
+      "python"
+    ],
+    "description": "Authenticating a user, or otherwise establishing a new user session, without invalidating any existing session identifier gives an attacker the opportunity to steal authenticated sessions. The attacker first obtains or plants a session ID in the victim's browser (via a URL parameter, a cookie set from a sibling subdomain, or XSS) and, once the victim logs in, reuses the same ID as an authenticated session.",
+    "prerequisites": [
+      "The application keeps the same session identifier across the login boundary or privilege changes",
+      "The attacker can set or learn the victim's pre-login session ID, e.g. via session IDs in URLs (`;jsessionid=`), a cookie set from a sibling subdomain, or header injection",
+      "The application accepts session identifiers that it did not issue (permissive session handling)"
+    ],
+    "impact": [
+      "Hijacking of the victim's authenticated session without needing credentials",
+      "Escalation to privileged sessions when the fixed session belongs to an administrator",
+      "Actions performed by the attacker are attributed to the victim in audit logs"
+    ],
+    "detection_patterns": [
+      "Login handlers that set `session.setAttribute(\"user\", ...)`, `$_SESSION['uid']` or `req.session.userId` without `changeSessionId()`, `session_regenerate_id(true)` or `req.session.regenerate()`",
+      "Spring Security configured with `sessionFixation().none()`",
+      "PHP with `session.use_strict_mode=0`, `session.use_only_cookies=0` or `session.use_trans_sid=1`",
+      "Session IDs accepted from query strings or URL path parameters"
+    ],
+    "remediation": [
+      "Issue a new session identifier on login and on any privilege change (`request.changeSessionId()`, `session_regenerate_id(true)`, `req.session.regenerate()`, Django `login()` which cycles the key)",
+      "Keep Spring Security's default `changeSessionId` or `migrateSession` session-fixation protection",
+      "Accept session IDs only from cookies; enable strict mode so unknown IDs are rejected",
+      "Scope session cookies tightly (host-only, `__Host-` prefix) to prevent sibling subdomains from setting them"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {\n    User u = auth.verify(req.getParameter(\"user\"), req.getParameter(\"pass\"));\n    if (u == null) { resp.sendError(401); return; }\n    // Keeps the pre-login session ID, which an attacker may have planted\n    req.getSession().setAttribute(\"user\", u);\n    resp.sendRedirect(\"/home\");\n}"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {\n    User u = auth.verify(req.getParameter(\"user\"), req.getParameter(\"pass\"));\n    if (u == null) { resp.sendError(401); return; }\n    req.getSession(true);\n    req.changeSessionId();          // Servlet 3.1+: new ID issued after authentication\n    req.getSession().setAttribute(\"user\", u);\n    resp.sendRedirect(\"/home\");\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-384: Session Fixation",
+        "url": "https://cwe.mitre.org/data/definitions/384.html"
+      },
+      {
+        "title": "OWASP Session Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-613-insufficient-session-expiration",
+    "cwe_id": "CWE-613",
+    "title": "Insufficient Session Expiration",
+    "cwe_name": "Insufficient Session Expiration",
+    "category": "Session Management",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "php",
+      "go"
+    ],
+    "description": "According to WASC, insufficient session expiration is when a web site permits an attacker to reuse old session credentials or session IDs for authorization. Sessions and tokens that never expire, have very long lifetimes, or remain valid after logout and password change extend the window in which a stolen credential is useful. Stateless JWTs are especially prone to this because they cannot be revoked without additional server-side state.",
+    "prerequisites": [
+      "The attacker obtains a session ID or token through XSS, logs, browser history, a shared computer or a leaked backup",
+      "The token lacks an expiry, has a long lifetime, or the server does not invalidate it on logout or password change",
+      "Users access the application from shared or unmanaged devices where sessions are left open"
+    ],
+    "impact": [
+      "Long-term account access from a single stolen token",
+      "Logout and password change fail to evict an attacker who already holds a session",
+      "Former employees or revoked users retain access through still-valid tokens"
+    ],
+    "detection_patterns": [
+      "`jwt.encode(...)` / `jwt.sign(...)` without an `exp` claim or `expiresIn`, or `jwt.decode`/`verify` calls that do not require `exp`",
+      "Session cookies with multi-month `maxAge`/`Max-Age` and no idle timeout on the server",
+      "Logout handlers that only delete the client cookie without destroying the server-side session (`session.invalidate()`, `req.session.destroy()`, `session_destroy()`)",
+      "No mechanism to revoke refresh tokens or all sessions of a user after a password reset"
+    ],
+    "remediation": [
+      "Set both an idle timeout and an absolute session lifetime appropriate to the risk of the application",
+      "Issue short-lived access tokens (minutes) with refresh tokens that rotate on use and can be revoked server-side",
+      "Destroy the server-side session on logout and revoke all sessions and refresh tokens on password change or account disable",
+      "Require `exp` during token validation and track `jti` values in a denylist when early revocation is needed"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "def issue_token(user):\n    # No \"exp\" claim: the token is valid forever and logout cannot revoke it\n    return jwt.encode({\"sub\": str(user.id), \"role\": user.role}, SECRET, algorithm=\"HS256\")"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "def issue_token(user):\n    now = datetime.now(timezone.utc)\n    claims = {\"sub\": str(user.id), \"iat\": now, \"exp\": now + timedelta(minutes=15),\n              \"jti\": uuid.uuid4().hex}\n    return jwt.encode(claims, SECRET, algorithm=\"HS256\")\n\ndef verify(token):\n    claims = jwt.decode(token, SECRET, algorithms=[\"HS256\"], options={\"require\": [\"exp\", \"jti\"]})\n    if revoked_jtis.contains(claims[\"jti\"]):   # filled on logout and password change\n        raise jwt.InvalidTokenError(\"token revoked\")\n    return claims"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-613: Insufficient Session Expiration",
+        "url": "https://cwe.mitre.org/data/definitions/613.html"
+      },
+      {
+        "title": "OWASP Session Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP JSON Web Token for Java Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-614-cookie-without-secure-attribute",
+    "cwe_id": "CWE-614",
+    "title": "Cookie Without Secure Attribute",
+    "cwe_name": "Sensitive Cookie in HTTPS Session Without 'Secure' Attribute",
+    "category": "Session Management",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "low",
+    "languages": [
+      "java",
+      "javascript",
+      "python",
+      "php"
+    ],
+    "description": "The `Secure` attribute for sensitive cookies in HTTPS sessions is not set, which could cause the user agent to send those cookies in plaintext over an HTTP session. An attacker on the network path can force or wait for any plain HTTP request to the domain, for example via an injected `http://` image link, and read the cookie. HSTS reduces but does not replace the need for the attribute.",
+    "prerequisites": [
+      "A session, remember-me or authentication cookie is set without `Secure`",
+      "The site, or any host the cookie is scoped to, is reachable over plain HTTP, or HSTS is absent or not preloaded",
+      "The attacker can observe or intercept network traffic (public Wi-Fi, compromised router, ISP-level position)"
+    ],
+    "impact": [
+      "Session hijacking by capturing cookies from plaintext HTTP requests",
+      "Theft of long-lived remember-me tokens that grant persistent account access",
+      "Exposure of personal or preference data stored in cookies to passive network observers"
+    ],
+    "detection_patterns": [
+      "`new Cookie(...)` without `setSecure(true)`; Spring Boot without `server.servlet.session.cookie.secure=true` when TLS terminates at a proxy",
+      "Express `res.cookie(name, value)` or `express-session` with `cookie.secure: false` in production",
+      "Flask `SESSION_COOKIE_SECURE` left at its default `False`; Django `SESSION_COOKIE_SECURE` and `CSRF_COOKIE_SECURE` not enabled",
+      "PHP `setcookie()` without the `secure` option, or `session.cookie_secure=0` in php.ini"
+    ],
+    "remediation": [
+      "Set `Secure` on every cookie that carries session state, tokens or personal data",
+      "Use the `__Host-` cookie prefix, which browsers accept only with `Secure`, `Path=/` and no `Domain` attribute",
+      "Enable HSTS with a long `max-age` and `includeSubDomains`, and redirect all HTTP traffic to HTTPS",
+      "When TLS terminates at a reverse proxy, configure the framework to trust `X-Forwarded-Proto` so it marks cookies Secure"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "Cookie c = new Cookie(\"remember_me\", rememberToken);\nc.setHttpOnly(true);\nc.setPath(\"/\");\nc.setMaxAge(60 * 60 * 24 * 30);\n// No setSecure(true): the browser also sends this cookie over plain http://\nresp.addCookie(c);"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "Cookie c = new Cookie(\"__Host-remember_me\", rememberToken);\nc.setHttpOnly(true);\nc.setSecure(true);          // only sent over HTTPS; required by the __Host- prefix\nc.setPath(\"/\");\nc.setMaxAge(60 * 60 * 24 * 30);\nresp.addCookie(c);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-614: Sensitive Cookie in HTTPS Session Without 'Secure' Attribute",
+        "url": "https://cwe.mitre.org/data/definitions/614.html"
+      },
+      {
+        "title": "OWASP Session Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-1004-cookie-without-httponly",
+    "cwe_id": "CWE-1004",
+    "title": "Cookie Without HttpOnly Flag",
+    "cwe_name": "Sensitive Cookie Without 'HttpOnly' Flag",
+    "category": "Session Management",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "low",
+    "languages": [
+      "php",
+      "javascript",
+      "python",
+      "java"
+    ],
+    "description": "The product uses a cookie to store sensitive information, but the cookie is not marked with the `HttpOnly` flag. Without it, client-side scripts can read the cookie through `document.cookie`, so any cross-site scripting flaw becomes a direct session or token theft. `HttpOnly` does not prevent XSS itself, but it removes the most common way of turning XSS into persistent account takeover.",
+    "prerequisites": [
+      "A session, authentication or remember-me cookie is set without `HttpOnly`",
+      "The attacker can execute JavaScript in the site's origin, typically through an XSS vulnerability or a compromised third-party script",
+      "The stolen cookie is usable from another client, i.e. the session is not bound to the device or client certificate"
+    ],
+    "impact": [
+      "Exfiltration of session cookies to an attacker-controlled server and session hijacking",
+      "Theft of long-lived tokens that remain valid after the XSS is fixed",
+      "Session takeover that continues independently of the victim's browser, after the injected script stops running"
+    ],
+    "detection_patterns": [
+      "PHP `setcookie()` without `'httponly' => true`, or `session.cookie_httponly=0`",
+      "Flask/Werkzeug `response.set_cookie()` calls without `httponly=True` (the default is `False`), or `SESSION_COOKIE_HTTPONLY=False`",
+      "Express `res.cookie()` without `httpOnly: true`; authentication tokens written by front-end code with `document.cookie = 'token=' + jwt`",
+      "Storing access tokens in `localStorage`, which offers no equivalent protection"
+    ],
+    "remediation": [
+      "Set `HttpOnly` on all cookies that carry session identifiers or authentication tokens",
+      "Set session tokens from the server, not from JavaScript; avoid placing bearer tokens in `localStorage` for browser apps",
+      "Combine with `Secure`, an appropriate `SameSite` value and a Content Security Policy to limit XSS impact",
+      "Audit framework defaults and explicit `set_cookie`/`setcookie` calls, since defaults differ between frameworks"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "// No 'httponly' option: injected script can read it via document.cookie\nsetcookie('remember_token', $token, [\n    'expires'  => time() + 60 * 60 * 24 * 30,\n    'path'     => '/',\n    'secure'   => true,\n    'samesite' => 'Lax',\n]);"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "setcookie('remember_token', $token, [\n    'expires'  => time() + 60 * 60 * 24 * 30,\n    'path'     => '/',\n    'secure'   => true,\n    'httponly' => true,      // not exposed to document.cookie\n    'samesite' => 'Lax',\n]);\n// php.ini for the session cookie: session.cookie_httponly = 1"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-1004: Sensitive Cookie Without 'HttpOnly' Flag",
+        "url": "https://cwe.mitre.org/data/definitions/1004.html"
+      },
+      {
+        "title": "OWASP Session Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-1275-cookie-improper-samesite",
+    "cwe_id": "CWE-1275",
+    "title": "Cookie With Improper SameSite Attribute",
+    "cwe_name": "Sensitive Cookie with Improper SameSite Attribute",
+    "category": "Session Management",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "low",
+    "languages": [
+      "javascript",
+      "python",
+      "java",
+      "php"
+    ],
+    "description": "The `SameSite` attribute for sensitive cookies is not set, or an insecure value (`None`) is used. With `SameSite=None`, the browser attaches the cookie to cross-site requests, including form POSTs and iframes, which re-enables CSRF and cross-site leak attacks that `Lax` or `Strict` would block. Relying on browser defaults is unreliable, since behaviour for cookies without the attribute differs between browsers.",
+    "prerequisites": [
+      "A session or authentication cookie is set with `SameSite=None` or without the attribute",
+      "A state-changing endpoint relies on cookie authentication and lacks CSRF tokens",
+      "The victim visits an attacker-controlled site while logged in"
+    ],
+    "impact": [
+      "Cross-site request forgery against cookie-authenticated endpoints",
+      "Cross-site leaks and clickjacking that depend on the cookie being sent in third-party contexts",
+      "Weakening of defense in depth, so that a single missing CSRF token becomes directly exploitable"
+    ],
+    "detection_patterns": [
+      "`res.cookie(..., { sameSite: 'none' })` or `express-session` with `cookie: { sameSite: 'none' }` for first-party-only apps",
+      "Django `SESSION_COOKIE_SAMESITE = None`, Flask `SESSION_COOKIE_SAMESITE` unset, or PHP `session.cookie_samesite` empty",
+      "`Set-Cookie` headers for session cookies with no `SameSite` attribute at all",
+      "`SameSite=None` chosen only to support an embedded widget or SSO callback, then applied to the main session cookie"
+    ],
+    "remediation": [
+      "Set `SameSite=Lax` on session cookies by default, and `Strict` for high-value applications such as admin consoles or banking",
+      "Use `SameSite=None; Secure` only for cookies that genuinely must be sent cross-site, and give those cookies minimal privileges",
+      "Keep CSRF tokens in place; SameSite is defense in depth and does not protect against same-site attackers such as a compromised subdomain"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "res.cookie('sid', sessionId, {\n  httpOnly: true,\n  secure: true,\n  sameSite: 'none',   // sent on cross-site POSTs, iframes and fetches from any site\n});"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "res.cookie('sid', sessionId, {\n  httpOnly: true,\n  secure: true,\n  sameSite: 'lax',    // use 'strict' for admin sessions; keep CSRF tokens as well\n});"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-1275: Sensitive Cookie with Improper SameSite Attribute",
+        "url": "https://cwe.mitre.org/data/definitions/1275.html"
+      },
+      {
+        "title": "OWASP Session Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Cross-Site Request Forgery Prevention Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-347-improper-signature-verification",
+    "cwe_id": "CWE-347",
+    "title": "Improper Verification of Cryptographic Signature",
+    "cwe_name": "Improper Verification of Cryptographic Signature",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures",
+      "A08:2021-Software and Data Integrity Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "javascript",
+      "python",
+      "java",
+      "go"
+    ],
+    "description": "The product does not verify, or incorrectly verifies, the cryptographic signature for data. In web applications this most often concerns JSON Web Tokens: decoding a token without verifying it, accepting the `none` algorithm, or allowing the token header to choose between asymmetric and HMAC algorithms so the public key is misused as an HMAC secret. Similar flaws affect SAML assertions, signed webhooks and software update packages.",
+    "prerequisites": [
+      "The application trusts signed data (JWT, SAML assertion, signed URL, update package) to make security decisions",
+      "The verification step is skipped, optional, or lets attacker-controlled metadata (such as the JWT `alg` or `kid` header) select the algorithm or key",
+      "The attacker can submit crafted data and, for algorithm-confusion attacks, knows the public verification key"
+    ],
+    "impact": [
+      "Forged tokens that impersonate any user or grant arbitrary roles",
+      "Authentication bypass in SSO integrations",
+      "Installation of tampered software or acceptance of tampered messages"
+    ],
+    "detection_patterns": [
+      "`jwt.decode(token)` (jsonwebtoken) or PyJWT `jwt.decode(..., options={\"verify_signature\": False})` used to establish identity",
+      "`jwt.verify` / `jwt.decode` calls without a pinned `algorithms` list, or a list that mixes `RS256` and `HS256`",
+      "Key selection from untrusted header fields (`kid`, `jku`, `x5u`) without an allowlist",
+      "SAML libraries configured to accept unsigned assertions, or checks that verify a signature but read data from an unsigned part of the document"
+    ],
+    "remediation": [
+      "Always verify signatures with a maintained library and pin the expected algorithm(s) explicitly",
+      "Use separate keys per algorithm and never let token headers choose the key type; allowlist `kid` values",
+      "Validate `iss`, `aud` and `exp` claims in addition to the signature",
+      "Reject unsigned or `alg: none` tokens and fail closed on any verification error"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "function currentUserId(req) {\n  const token = (req.headers.authorization || '').replace('Bearer ', '');\n  // decode() only base64-decodes the payload; the signature is never checked\n  const claims = jwt.decode(token);\n  return claims && claims.sub;\n}"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "function currentUserId(req) {\n  const token = (req.headers.authorization || '').replace('Bearer ', '');\n  const claims = jwt.verify(token, PUBLIC_KEY, {\n    algorithms: ['RS256'],              // blocks \"none\" and RS256-to-HS256 confusion\n    issuer: 'https://auth.example.com',\n    audience: 'securematrix-api',\n  });\n  return claims.sub;\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-347: Improper Verification of Cryptographic Signature",
+        "url": "https://cwe.mitre.org/data/definitions/347.html"
+      },
+      {
+        "title": "OWASP JSON Web Token for Java Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-290-authentication-bypass-spoofing",
+    "cwe_id": "CWE-290",
+    "title": "Authentication Bypass by Spoofing",
+    "cwe_name": "Authentication Bypass by Spoofing",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "python",
+      "javascript",
+      "java",
+      "php"
+    ],
+    "description": "This attack-focused weakness is caused by incorrectly implemented authentication schemes that are subject to spoofing attacks. Typical cases are trusting a client IP address taken from `X-Forwarded-For`, trusting identity headers such as `X-User` or `X-Remote-User` that a proxy is expected to set, or relying on the `Referer` header or a reverse-DNS name. Any value the client can set or influence cannot serve as proof of identity.",
+    "prerequisites": [
+      "Access decisions depend on an IP address, hostname or header value rather than on a verified credential",
+      "The application reads that value from a client-controllable source, or is reachable without going through the proxy that is supposed to set it",
+      "The attacker knows or can guess the trusted value, such as an internal address range or a valid username for an identity header"
+    ],
+    "impact": [
+      "Access to admin or internal-only functions by forging an internal IP or identity header",
+      "Impersonation of arbitrary users when the application trusts an upstream identity header",
+      "Bypass of IP-based rate limits and allowlists"
+    ],
+    "detection_patterns": [
+      "`r.Header.Get(\"X-Forwarded-For\")`, `request.headers['X-Real-IP']`, `$_SERVER['HTTP_X_FORWARDED_FOR']` or `req.headers['x-forwarded-for']` used in an allowlist or auth check",
+      "Express `app.set('trust proxy', true)` combined with `req.ip` allowlists when the app is directly reachable",
+      "Authentication middleware that reads `X-User`, `X-Remote-User` or `X-Authenticated-Email` without verifying the request came from the trusted proxy",
+      "Access control based on the `Referer` header or on reverse-DNS lookups of the client address"
+    ],
+    "remediation": [
+      "Authenticate with credentials that cannot be spoofed: session cookies, signed tokens, mTLS client certificates",
+      "If IP restrictions are required, use the TCP peer address or configure the framework to trust forwarding headers only from known proxy addresses",
+      "When a proxy injects identity headers, strip any incoming copies at the proxy and verify the proxy (mTLS or a signed assertion) in the application",
+      "Make the application unreachable except through the proxy, using network policy or private binding"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "func internalOnly(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        ip := r.Header.Get(\"X-Forwarded-For\") // set by the client: \"10.0.0.5\" passes\n        if !strings.HasPrefix(ip, \"10.0.\") {\n            http.Error(w, \"forbidden\", http.StatusForbidden)\n            return\n        }\n        next.ServeHTTP(w, r)\n    })\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "func internalOnly(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        host, _, err := net.SplitHostPort(r.RemoteAddr) // TCP peer, not a header\n        ip := net.ParseIP(host)\n        if err != nil || ip == nil || !adminNet.Contains(ip) ||\n            r.TLS == nil || len(r.TLS.VerifiedChains) == 0 { // also require an mTLS client cert\n            http.Error(w, \"forbidden\", http.StatusForbidden)\n            return\n        }\n        next.ServeHTTP(w, r)\n    })\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-290: Authentication Bypass by Spoofing",
+        "url": "https://cwe.mitre.org/data/definitions/290.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-294-capture-replay",
+    "cwe_id": "CWE-294",
+    "title": "Authentication Bypass by Capture-replay",
+    "cwe_name": "Authentication Bypass by Capture-replay",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "php",
+      "python",
+      "javascript",
+      "go",
+      "java"
+    ],
+    "description": "A capture-replay flaw exists when the design of the product makes it possible for a malicious user to sniff network traffic and bypass authentication by replaying it to the server in question to the same effect as the original message. It affects signed webhooks and API requests without timestamps or nonces, static challenge responses, OTP codes that remain valid after use, and protocols that send a reusable password hash.",
+    "prerequisites": [
+      "Authentication or integrity of a request relies on a value (signature, hash, token, code) that is identical every time the same request is sent",
+      "The attacker can observe or obtain a valid request, for example from logs, a proxy, a compromised client or a non-TLS hop",
+      "The server does not track freshness through timestamps, nonces or one-time identifiers"
+    ],
+    "impact": [
+      "Repeated execution of captured actions such as payments, credits or account changes",
+      "Authentication as the victim using a captured login message or one-time code",
+      "Duplicate processing of webhook events with financial impact"
+    ],
+    "detection_patterns": [
+      "HMAC webhook or API signatures computed over the body only, with no timestamp in the signed data and no tolerance window check",
+      "No storage of processed event, request or nonce IDs to reject duplicates",
+      "TOTP or SMS codes not marked as used after successful verification",
+      "Custom login protocols that send `hash(password)` instead of a challenge-response over TLS"
+    ],
+    "remediation": [
+      "Include a timestamp and a unique nonce or event ID in the signed data and reject messages outside a short window (for example 5 minutes)",
+      "Store processed nonces or event IDs for at least the tolerance window and reject duplicates",
+      "Mark one-time codes and tokens as consumed on first successful use",
+      "Use TLS everywhere, and prefer standard protocols with built-in replay protection (TLS, OAuth 2.0 with PKCE, WebAuthn)"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "$payload = file_get_contents('php://input');\n$sig = $_SERVER['HTTP_X_SIGNATURE'] ?? '';\n// Signature covers the body only: a captured request can be replayed indefinitely\nif (!hash_equals(hash_hmac('sha256', $payload, WEBHOOK_SECRET), $sig)) {\n    http_response_code(401); exit;\n}\ncredit_account(json_decode($payload, true));"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "$payload = file_get_contents('php://input');\n$ts  = (int) ($_SERVER['HTTP_X_TIMESTAMP'] ?? 0);\n$expected = hash_hmac('sha256', $ts . '.' . $payload, WEBHOOK_SECRET);\nif (abs(time() - $ts) > 300 || !hash_equals($expected, $_SERVER['HTTP_X_SIGNATURE'] ?? '')) {\n    http_response_code(401); exit;\n}\n$event = json_decode($payload, true);\nif (!$redis->set('webhook:' . $event['id'], 1, ['nx', 'ex' => 600])) { exit; } // replayed\ncredit_account($event);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-294: Authentication Bypass by Capture-replay",
+        "url": "https://cwe.mitre.org/data/definitions/294.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-308-single-factor-authentication",
+    "cwe_id": "CWE-308",
+    "title": "Use of Single-factor Authentication",
+    "cwe_name": "Use of Single-factor Authentication",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "java",
+      "javascript",
+      "php"
+    ],
+    "description": "The product uses an authentication algorithm that uses a single factor (e.g., a password) in a security context that should require more than one factor. If the single factor is phished, guessed, reused from a breach or captured by malware, nothing else stands between the attacker and the account. The risk is highest for administrator accounts, remote access, and high-value operations such as payouts or key management.",
+    "prerequisites": [
+      "Access to privileged accounts or high-impact operations is granted on the basis of a password alone",
+      "The attacker obtains the password through phishing, credential stuffing, keylogging or a breach of another service",
+      "The login endpoint is reachable from the internet rather than only from a managed network"
+    ],
+    "impact": [
+      "Full compromise of administrator accounts from a single leaked password",
+      "Unauthorized financial transactions or configuration changes",
+      "Lateral movement into connected systems that trust the compromised identity"
+    ],
+    "detection_patterns": [
+      "Admin consoles (`/admin`, Django admin, internal dashboards) protected only by `@login_required` or a username/password form",
+      "No MFA enrolment model or verification step in the authentication flow, e.g. no TOTP or WebAuthn library in the dependency list",
+      "High-risk endpoints (payout approval, API key creation, role changes) that do not require a step-up second factor",
+      "Remote access (SSH, VPN, cloud console) configured with password authentication only"
+    ],
+    "remediation": [
+      "Require a second factor for administrators and for high-risk operations, preferring phishing-resistant methods such as WebAuthn/FIDO2 passkeys",
+      "Offer TOTP as a fallback; treat SMS as a weaker factor",
+      "Implement step-up authentication for sensitive actions even within an authenticated session",
+      "Protect MFA verification with rate limiting and secure recovery codes"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "# urls.py: Django admin and payout approval protected by password login only\nurlpatterns = [\n    path(\"admin/\", admin.site.urls),\n    path(\"payouts/approve/<int:pk>/\", login_required(approve_payout)),\n]"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "from django_otp.admin import OTPAdminSite\nfrom django_otp.decorators import otp_required\n\nadmin.site.__class__ = OTPAdminSite   # admin requires a verified OTP device\nurlpatterns = [\n    path(\"admin/\", admin.site.urls),\n    path(\"payouts/approve/<int:pk>/\", otp_required(approve_payout)),\n]"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-308: Use of Single-factor Authentication",
+        "url": "https://cwe.mitre.org/data/definitions/308.html"
+      },
+      {
+        "title": "OWASP Multifactor Authentication Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html"
+      }
+    ]
+  }
+]

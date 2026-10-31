@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { color-scheme: dark; }
+  body {
+    @apply bg-ink text-fg font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+    font-feature-settings: "tnum" 1;
+  }
+  h1, h2, h3 { @apply text-fg; letter-spacing: -0.01em; }
+  a { @apply text-link; }
+  :focus-visible { outline: 2px solid #7DA2FF; outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: rgba(63, 184, 216, 0.35); }
+  code, pre, kbd { @apply font-mono; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  .tbl { @apply w-full text-left border-collapse; }
+  .tbl th { @apply font-medium text-fg-muted text-[13px] py-2 px-3 border-b border-line whitespace-nowrap; }
+  .tbl td { @apply py-2.5 px-3 border-b border-line/70 align-top; }
+  .tbl tbody tr:hover { @apply bg-panel-2/60; }
+  .prose-sm p { @apply mb-2; }
+  .prose-sm ul { @apply list-disc pl-5 space-y-1; }
+}
+
+/* scrollbar */
+* { scrollbar-width: thin; scrollbar-color: #34466A transparent; }

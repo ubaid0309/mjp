@@ -1,0 +1,420 @@
+# SecureMatrix bundled Semgrep rules: Python
+# These complement the Semgrep registry packs and keep working when the registry is unreachable.
+rules:
+  - id: sm-python-sql-string-build
+    languages: [python]
+    severity: ERROR
+    message: >-
+      SQL statement is built with string formatting or concatenation and passed to a database call.
+      If any part of the string is user-controlled this is SQL injection. Pass values as query parameters instead.
+    pattern-either:
+      - pattern: $CUR.execute(f"...", ...)
+      - pattern: $CUR.execute("..." % $X, ...)
+      - pattern: $CUR.execute("..." + $X, ...)
+      - pattern: $CUR.execute("..." + $X + $Y, ...)
+      - pattern: $CUR.execute("...".format(...), ...)
+      - pattern: $CUR.executemany(f"...", ...)
+      - pattern: sqlalchemy.text(f"...")
+      - pattern: |
+          $Q = f"..."
+          ...
+          $CUR.execute($Q, ...)
+      - pattern: |
+          $Q = "..." + $X
+          ...
+          $CUR.execute($Q, ...)
+      - pattern: |
+          $Q = "..." + $X + $Y
+          ...
+          $CUR.execute($Q, ...)
+      - pattern: |
+          $Q = "..." % $X
+          ...
+          $CUR.execute($Q, ...)
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-python-command-injection
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A shell command is built from a non-constant value. An attacker who controls part of it can run arbitrary
+      commands. Use subprocess.run([...]) with an argument list and shell=False, and validate inputs against an allow-list.
+    patterns:
+      - pattern-either:
+          - pattern: os.system($CMD)
+          - pattern: os.popen($CMD, ...)
+          - pattern: subprocess.$F($CMD, ..., shell=True, ...)
+          - pattern: commands.getoutput($CMD)
+      - pattern-not: os.system("...")
+      - pattern-not: os.popen("...", ...)
+      - pattern-not: subprocess.$F("...", ..., shell=True, ...)
+    metadata:
+      cwe: ["CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-python-eval-injection
+    languages: [python]
+    severity: ERROR
+    message: >-
+      eval()/exec() is called on a non-constant value. If that value can be influenced by a user, they can execute
+      arbitrary Python code. Use ast.literal_eval for data, or a dispatch table for behaviour.
+    patterns:
+      - pattern-either:
+          - pattern: eval($X, ...)
+          - pattern: exec($X, ...)
+      - pattern-not: eval("...", ...)
+      - pattern-not: exec("...", ...)
+    metadata:
+      cwe: ["CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code ('Eval Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-python-unsafe-deserialization
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Untrusted data deserialized with pickle/marshal or yaml.load without a safe loader can execute arbitrary code.
+      Use JSON, or yaml.safe_load, and never unpickle data that crosses a trust boundary.
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+      - pattern: cPickle.loads(...)
+      - pattern: marshal.loads(...)
+      - pattern: yaml.load($X)
+      - pattern: yaml.load($X, Loader=yaml.Loader)
+      - pattern: yaml.load($X, Loader=yaml.UnsafeLoader)
+      - pattern: yaml.unsafe_load(...)
+    metadata:
+      cwe: ["CWE-502: Deserialization of Untrusted Data"]
+      owasp: ["A08:2021 - Software and Data Integrity Failures"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-python-weak-password-hash
+    languages: [python]
+    severity: WARNING
+    message: >-
+      MD5/SHA-1 (or a single fast SHA-2 round) is used on a password-like value. Fast hashes can be brute-forced
+      offline at billions of guesses per second. Use argon2id, scrypt or bcrypt with a per-user salt.
+    patterns:
+      - pattern-either:
+          - pattern: hashlib.md5($X, ...)
+          - pattern: hashlib.sha1($X, ...)
+          - pattern: hashlib.sha256($X, ...)
+          - pattern: hashlib.new("md5", $X, ...)
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i).*(passw|pwd|secret|pin).*
+    metadata:
+      cwe: ["CWE-916: Use of Password Hash With Insufficient Computational Effort"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-python-weak-hash
+    languages: [python]
+    severity: WARNING
+    message: MD5 and SHA-1 are broken for collision resistance. Use SHA-256 or stronger for integrity checks.
+    patterns:
+      - pattern-either:
+          - pattern: hashlib.md5($X, ...)
+          - pattern: hashlib.sha1($X, ...)
+      - pattern-not: hashlib.md5(..., usedforsecurity=False)
+      - pattern-not: hashlib.sha1(..., usedforsecurity=False)
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i)^(?!.*(passw|pwd|secret|pin)).*$
+    metadata:
+      cwe: ["CWE-328: Use of Weak Hash"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: LOW
+      likelihood: LOW
+      impact: MEDIUM
+      category: security
+
+  - id: sm-python-weak-cipher
+    languages: [python]
+    severity: ERROR
+    message: >-
+      DES/3DES/RC4 or AES in ECB mode is used. These do not provide adequate confidentiality. Use an authenticated
+      mode such as AES-GCM (cryptography.hazmat AESGCM) with a random nonce.
+    pattern-either:
+      - pattern: Crypto.Cipher.DES.new(...)
+      - pattern: Crypto.Cipher.DES3.new(...)
+      - pattern: Crypto.Cipher.ARC4.new(...)
+      - pattern: Crypto.Cipher.AES.new($K, Crypto.Cipher.AES.MODE_ECB, ...)
+      - pattern: DES.new(...)
+      - pattern: AES.new($K, AES.MODE_ECB, ...)
+      - pattern: cryptography.hazmat.primitives.ciphers.modes.ECB(...)
+    metadata:
+      cwe: ["CWE-327: Use of a Broken or Risky Cryptographic Algorithm"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-python-insecure-random-secret
+    languages: [python]
+    severity: WARNING
+    message: >-
+      The `random` module is used to generate a security-sensitive value. Its output is predictable.
+      Use the `secrets` module (secrets.token_urlsafe, secrets.choice) instead.
+    patterns:
+      - pattern-inside: |
+          def $FN(...):
+            ...
+      - metavariable-regex:
+          metavariable: $FN
+          regex: (?i).*(token|secret|password|passwd|otp|nonce|salt|session|reset|api_?key).*
+      - pattern: random.$F(...)
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(random|randint|choice|choices|randrange|getrandbits|sample)$
+    metadata:
+      cwe: ["CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: MEDIUM
+      category: security
+
+  - id: sm-python-hardcoded-secret
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A credential or secret key appears to be hard-coded in source. Anyone with access to the code (or its history)
+      can use it. Load secrets from the environment or a secrets manager and rotate this value.
+    patterns:
+      - pattern-either:
+          - pattern: $NAME = "$VALUE"
+          - pattern: $OBJ[$NAME] = "$VALUE"
+          - pattern: $F(..., $NAME="$VALUE", ...)
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)^["']?[\w]*(password|passwd|pwd|secret|secret_key|api_key|apikey|access_key|auth_token|private_key)["']?$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^(?!(changeme|change-me|example|placeholder|xxx+|\*+|your[-_].*|<.*>|\$\{.*\}|test)$).{6,}$
+    metadata:
+      cwe: ["CWE-798: Use of Hard-coded Credentials"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-python-flask-debug
+    languages: [python]
+    severity: WARNING
+    message: >-
+      The Flask app runs with debug=True. The Werkzeug debugger allows arbitrary code execution from the browser
+      if it is reachable. Control debug mode through configuration and never enable it in production.
+    pattern: $APP.run(..., debug=True, ...)
+    metadata:
+      cwe: ["CWE-489: Active Debug Code"]
+      owasp: ["A05:2021 - Security Misconfiguration"]
+      confidence: HIGH
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-python-tls-verify-disabled
+    languages: [python]
+    severity: WARNING
+    message: TLS certificate verification is disabled, so connections can be intercepted (man-in-the-middle).
+    pattern-either:
+      - pattern: requests.$M(..., verify=False, ...)
+      - pattern: httpx.$M(..., verify=False, ...)
+      - pattern: ssl._create_unverified_context(...)
+    metadata:
+      cwe: ["CWE-295: Improper Certificate Validation"]
+      owasp: ["A07:2021 - Identification and Authentication Failures"]
+      confidence: HIGH
+      likelihood: LOW
+      impact: HIGH
+      category: security
+
+  - id: sm-python-path-traversal
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      A file path derived from request data reaches a filesystem call without normalisation. Sequences like
+      ../ let an attacker read or overwrite files outside the intended directory. Resolve the path and verify it
+      stays inside the base directory, or use send_from_directory/secure_filename.
+    pattern-sources:
+      - pattern: flask.request.$ATTR
+      - pattern: request.$ATTR
+    pattern-sanitizers:
+      - pattern: werkzeug.utils.secure_filename(...)
+      - pattern: secure_filename(...)
+      - pattern: os.path.basename(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: open($P, ...)
+              - pattern: flask.send_file($P, ...)
+              - pattern: send_file($P, ...)
+              - pattern: os.remove($P)
+              - pattern: shutil.copy($P, ...)
+          - focus-metavariable: $P
+    metadata:
+      cwe: ["CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-python-ssrf
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      A URL taken from the request is fetched by the server. An attacker can make the server call internal
+      services or cloud metadata endpoints. Validate the destination against an allow-list of hosts.
+    pattern-sources:
+      - pattern: flask.request.$ATTR
+      - pattern: request.$ATTR
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: requests.$M($URL, ...)
+              - pattern: urllib.request.urlopen($URL, ...)
+              - pattern: httpx.$M($URL, ...)
+          - focus-metavariable: $URL
+    metadata:
+      cwe: ["CWE-918: Server-Side Request Forgery (SSRF)"]
+      owasp: ["A10:2021 - Server-Side Request Forgery"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security
+
+  - id: sm-python-xss-template-string
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: >-
+      Request data is rendered into HTML without escaping (render_template_string / Markup / raw HTML response).
+      This allows cross-site scripting. Use templates with autoescaping and pass data as variables.
+    pattern-sources:
+      - pattern: flask.request.$ATTR
+      - pattern: request.$ATTR
+    pattern-sanitizers:
+      - pattern: markupsafe.escape(...)
+      - pattern: html.escape(...)
+      - pattern: escape(...)
+    pattern-sinks:
+      - pattern: render_template_string(...)
+      - pattern: flask.render_template_string(...)
+      - pattern: markupsafe.Markup(...)
+      - pattern: Markup(...)
+      - patterns:
+          - pattern-inside: |
+              @$APP.route(...)
+              def $F(...):
+                ...
+          - pattern: return f"...<...>..."
+    metadata:
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: MEDIUM
+      likelihood: HIGH
+      impact: MEDIUM
+      category: security
+
+  - id: sm-python-unrestricted-upload
+    languages: [python]
+    severity: ERROR
+    message: >-
+      An uploaded file is saved using the client-supplied filename without validation. Attackers can upload
+      executable content or use ../ in the name. Use secure_filename, check the extension and content type against
+      an allow-list, generate your own file name and store uploads outside the web root.
+    patterns:
+      - pattern-either:
+          - pattern: $FILE.save(<... $FILE.filename ...>, ...)
+          - pattern: |
+              $NAME = $FILE.filename
+              ...
+              $FILE.save(<... $NAME ...>, ...)
+      - pattern-not-inside: $FILE.save(<... secure_filename(...) ...>, ...)
+    metadata:
+      cwe: ["CWE-434: Unrestricted Upload of File with Dangerous Type"]
+      owasp: ["A04:2021 - Insecure Design"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-python-client-controlled-authorization
+    languages: [python]
+    severity: ERROR
+    message: >-
+      An authorization decision relies on a value supplied by the client (query string, form, header or cookie).
+      Users can simply set it themselves. Derive roles from the server-side session or identity provider.
+    patterns:
+      - pattern-either:
+          - pattern: request.$A.get("$K", ...) == $V
+          - pattern: request.$A["$K"] == $V
+          - pattern: request.$A.get("$K", ...) in $V
+      - metavariable-regex:
+          metavariable: $K
+          regex: (?i)^(role|is_?admin|admin|user_?type|permission|access_?level|privilege)$
+    metadata:
+      cwe: ["CWE-285: Improper Authorization", "CWE-807: Reliance on Untrusted Inputs in a Security Decision"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-python-jwt-no-verify
+    languages: [python]
+    severity: ERROR
+    message: A JWT is decoded without verifying its signature, so any client can forge tokens.
+    pattern-either:
+      - pattern: 'jwt.decode(..., options={..., "verify_signature": False, ...}, ...)'
+      - pattern: jwt.decode(..., verify=False, ...)
+      - pattern: jwt.decode(..., algorithms=[..., "none", ...], ...)
+    metadata:
+      cwe: ["CWE-347: Improper Verification of Cryptographic Signature"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
+      confidence: HIGH
+      likelihood: HIGH
+      impact: HIGH
+      category: security
+
+  - id: sm-python-xxe
+    languages: [python]
+    severity: ERROR
+    message: The XML parser resolves external entities, enabling XXE (file disclosure, SSRF). Use defusedxml.
+    pattern-either:
+      - pattern: lxml.etree.XMLParser(..., resolve_entities=True, ...)
+      - pattern: etree.XMLParser(..., resolve_entities=True, ...)
+      - pattern: xml.sax.make_parser(...)
+    metadata:
+      cwe: ["CWE-611: Improper Restriction of XML External Entity Reference"]
+      owasp: ["A05:2021 - Security Misconfiguration"]
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      impact: HIGH
+      category: security

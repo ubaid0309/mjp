@@ -1,0 +1,1784 @@
+[
+  {
+    "slug": "cwe-798-hard-coded-credentials",
+    "cwe_id": "CWE-798",
+    "title": "Hard-coded Credentials",
+    "cwe_name": "Use of Hard-coded Credentials",
+    "category": "Secrets & Credentials",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "critical",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "php",
+      "go",
+      "csharp"
+    ],
+    "description": "The product contains a fixed password, API key, access token or connection string in its source code, binaries, container images or firmware and uses it for inbound authentication or for authenticating to another system. Every copy of the code carries the same secret, so anyone with access to the repository, a build artifact or a decompiled binary obtains working credentials, and the secret cannot be rotated without a code change and redeployment.",
+    "prerequisites": [
+      "Read access to source code, version-control history, CI logs, container image layers, mobile app packages or firmware images",
+      "The embedded credential is still valid and the target service (cloud API, database, admin interface) is reachable",
+      "For inbound hard-coded accounts (backdoor or default passwords), network access to the authentication interface"
+    ],
+    "impact": [
+      "Direct access to cloud accounts, databases or third-party APIs with the privileges of the embedded identity",
+      "Mass compromise of every deployed instance or device that shares the same built-in password",
+      "Financial loss from abused cloud resources (for example crypto-mining on leaked AWS keys)",
+      "Secret remains exposed in git history and forks even after it is deleted from the current code"
+    ],
+    "detection_patterns": [
+      "String literals matching provider key formats: AWS access key IDs `AKIA[0-9A-Z]{16}`, Stripe `sk_live_`, GitHub `ghp_`, Slack `xoxb-`, Google `AIza`",
+      "Assignments such as `password = \"...\"`, `aws_secret_access_key=\"...\"`, `DB_PASS = '...'` or `new NetworkCredential(\"admin\", \"...\")`",
+      "Connection strings with inline credentials, e.g. `postgresql://user:pass@host/db`, `Password=...;` in `appsettings.json` committed to git",
+      "PEM blocks (`-----BEGIN PRIVATE KEY-----`) or `.env` files tracked in the repository; findings from gitleaks, trufflehog or GitHub secret scanning",
+      "Authentication code comparing input to a constant, e.g. `if user == \"admin\" and pwd == \"admin123\"`"
+    ],
+    "remediation": [
+      "Load secrets at runtime from a secret manager (AWS Secrets Manager, HashiCorp Vault, Azure Key Vault, GCP Secret Manager) or injected environment variables, never from source",
+      "Prefer credential-less workload identity: IAM roles / instance profiles, Kubernetes service-account federation, Azure managed identities",
+      "When a secret leaks: revoke and rotate it first, then purge it from history (git filter-repo) and invalidate cached artifacts",
+      "Block new leaks with pre-commit and CI secret scanning (gitleaks, trufflehog) and enable push protection on the code host",
+      "For devices and appliances, ship without shared default passwords and force a unique credential at first setup"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "import boto3\n\ns3 = boto3.client(\n    \"s3\",\n    aws_access_key_id=\"AKIAEXAMPLEEXAMPLE00\",\n    aws_secret_access_key=\"EXAMPLE/PLACEHOLDER/NOT/A/REAL/SECRET/00\",\n    region_name=\"eu-west-1\",\n)\nDB_URL = \"postgresql://app:changeme-placeholder@db.internal:5432/prod\""
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import os\nimport boto3\n\n# Credentials come from the default provider chain (IAM role, SSO, env)\ns3 = boto3.client(\"s3\", region_name=\"eu-west-1\")\n\n# Injected at deploy time from a secret manager; fails fast if missing\nDB_URL = os.environ[\"DATABASE_URL\"]"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2010-2772",
+        "summary": "Siemens SIMATIC WinCC / PCS 7 used a hard-coded database password, which the Stuxnet malware abused."
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-798",
+        "url": "https://cwe.mitre.org/data/definitions/798.html"
+      },
+      {
+        "title": "OWASP Secrets Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-321-hard-coded-cryptographic-key",
+    "cwe_id": "CWE-321",
+    "title": "Hard-coded Cryptographic Key",
+    "cwe_name": "Use of Hard-coded Cryptographic Key",
+    "category": "Secrets & Credentials",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "javascript",
+      "python",
+      "java",
+      "php",
+      "csharp"
+    ],
+    "description": "A symmetric key, HMAC/JWT signing secret or private key is embedded as a constant in code or shipped inside an application package. All installations share the key, so whoever extracts it once can decrypt protected data or forge signatures, tokens and session cookies for every deployment. Unlike a hard-coded password, the damage extends to all data previously encrypted or signed with that key.",
+    "prerequisites": [
+      "Access to the source repository, a decompiled binary or mobile package, or a configuration file that contains the key",
+      "Knowledge of the algorithm and data format, which is usually visible next to the key in the code",
+      "Reachability of an endpoint that trusts tokens or ciphertexts protected by the key, or possession of encrypted data"
+    ],
+    "impact": [
+      "Forgery of JWTs or framework session cookies (e.g. Flask `secret_key`, Django `SECRET_KEY`) leading to authentication bypass and privilege escalation",
+      "Decryption of stored or intercepted data encrypted with the shared key, including historical data",
+      "Key compromise affects every customer and environment at once and requires a coordinated release to rotate"
+    ],
+    "detection_patterns": [
+      "Signing or encryption calls with literal secrets: `jwt.sign(payload, 'secret')`, `jwt.encode(..., 'changeme', algorithm='HS256')`",
+      "Key material built from literals: `new SecretKeySpec(\"0123456789abcdef\".getBytes(), \"AES\")`, `AES.new(b'sixteen byte key', ...)`, `openssl_encrypt($d, 'aes-256-gcm', 'literal-key', ...)`",
+      "Framework secrets committed to source: `SECRET_KEY = '...'` in Django settings, `app.secret_key = 'dev'`, `machineKey validationKey=` in web.config",
+      "Private keys or keystores (`.pem`, `.p12`, `.jks`) bundled in repositories, APKs or Docker images"
+    ],
+    "remediation": [
+      "Keep keys in a KMS or HSM (AWS KMS, Azure Key Vault, GCP Cloud KMS) and use envelope encryption so applications only handle wrapped data keys",
+      "Generate keys with a CSPRNG (e.g. `openssl rand -base64 32` for a 256-bit HMAC secret) and use distinct keys per environment and per tenant where feasible",
+      "Support rotation: tag tokens and ciphertexts with a key identifier (`kid`) and accept old keys only during a transition window",
+      "For tokens verified by many services, use asymmetric signatures (ES256, EdDSA, RS256) so verifiers hold only the public key"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "const jwt = require('jsonwebtoken');\nconst JWT_SECRET = 'my-app-secret-PLACEHOLDER'; // same key in every deployment\n\nfunction issueToken(user) {\n  return jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });\n}"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "const jwt = require('jsonwebtoken');\n// 256-bit random secret injected from a secret manager per environment\nconst JWT_SECRET = process.env.JWT_SECRET;\nif (!JWT_SECRET || Buffer.byteLength(JWT_SECRET) < 32) throw new Error('JWT_SECRET missing or too short');\n\nfunction issueToken(user) {\n  return jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET,\n    { algorithm: 'HS256', expiresIn: '1h', keyid: process.env.JWT_KID });\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-321",
+        "url": "https://cwe.mitre.org/data/definitions/321.html"
+      },
+      {
+        "title": "OWASP Key Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Secrets Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-522-insufficiently-protected-credentials",
+    "cwe_id": "CWE-522",
+    "title": "Insufficiently Protected Credentials",
+    "cwe_name": "Insufficiently Protected Credentials",
+    "category": "Authentication",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design",
+      "A07:2021-Identification and Authentication Failures"
+    ],
+    "owasp_api_2023": [
+      "API2:2023-Broken Authentication"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "java",
+      "javascript",
+      "python",
+      "php",
+      "csharp"
+    ],
+    "description": "Authentication credentials are transmitted or stored in a way that allows them to be intercepted or recovered, for example by encoding them reversibly, sending them in URLs, keeping them in client-side cookies or storage, or posting them over unencrypted channels. Base64, XOR or similar transformations are not protection: they only change the representation of the secret.",
+    "prerequisites": [
+      "Access to a location where the credential is exposed: browser cookies or storage (e.g. via XSS), proxy or server access logs, browser history, or a network path",
+      "The recovered credential is long-lived and reusable (a real password rather than a revocable token)",
+      "No compensating control such as MFA that would make a stolen password insufficient on its own"
+    ],
+    "impact": [
+      "Theft of users' actual passwords, which are frequently reused on other services",
+      "Account takeover that persists until the user changes the password, since the credential cannot be revoked independently",
+      "Credentials leaked into logs, Referer headers and analytics systems when placed in query strings"
+    ],
+    "detection_patterns": [
+      "Cookies or tokens built from `Base64(username + \":\" + password)` or similarly reversible encodings",
+      "Passwords in URLs, e.g. `GET /login?user=bob&password=...` or `https://user:pass@host` links",
+      "HTTP Basic authentication or login forms whose `action` targets `http://` instead of `https://`",
+      "Passwords persisted client-side: `localStorage.setItem('password', ...)`, Android `SharedPreferences.putString(\"password\", ...)`",
+      "Custom \"encryption\" of credentials with a static XOR key or a reversible cipher whose key sits next to the data"
+    ],
+    "remediation": [
+      "Transmit credentials only in request bodies over TLS and enable HSTS on login hosts",
+      "Replace stored credentials with opaque, random, revocable tokens (remember-me, refresh tokens) and store only their hash server-side",
+      "Verify passwords server-side against an adaptive hash (argon2id, bcrypt) and never return or re-display them",
+      "Use platform credential stores (Keychain, Android Keystore, OS credential managers) when a client must persist a secret"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "// \"Remember me\" cookie carrying the user's real credentials\nString raw = username + \":\" + password;\nString value = Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));\nCookie c = new Cookie(\"remember\", value);\nc.setMaxAge(30 * 24 * 3600);\nresponse.addCookie(c);"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "// Opaque random token; only its SHA-256 hash is stored server-side and it can be revoked\nbyte[] tokenBytes = new byte[32];\nnew SecureRandom().nextBytes(tokenBytes);\nString token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);\nrememberMeRepo.save(userId, sha256Hex(token), Instant.now().plus(Duration.ofDays(30)));\nCookie c = new Cookie(\"remember\", token);\nc.setHttpOnly(true);\nc.setSecure(true);\nc.setMaxAge(30 * 24 * 3600);\nresponse.addCookie(c);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-522",
+        "url": "https://cwe.mitre.org/data/definitions/522.html"
+      },
+      {
+        "title": "OWASP Authentication Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Password Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-256-plaintext-password-storage",
+    "cwe_id": "CWE-256",
+    "title": "Plaintext Password Storage",
+    "cwe_name": "Plaintext Storage of a Password",
+    "category": "Secrets & Credentials",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design",
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "php",
+      "python",
+      "java",
+      "javascript",
+      "csharp"
+    ],
+    "description": "Passwords are written to a database, configuration file, registry key or other persistent store exactly as entered. Anyone who can read that store, through SQL injection, a leaked backup, an over-privileged operator or a misplaced config file, immediately learns every password without any cracking effort.",
+    "prerequisites": [
+      "Read access to the storage location: database dump or backup, replica, configuration file, or an injection flaw that returns table contents",
+      "Users reuse the same password elsewhere, extending the impact beyond the vulnerable application",
+      "No monitoring of bulk reads or exports of the credential table that would reveal the theft"
+    ],
+    "impact": [
+      "Instant disclosure of all user passwords after any database leak, with no hashing work required",
+      "Credential-stuffing attacks against other services using the recovered email/password pairs",
+      "Insider misuse, since administrators and support staff can read passwords directly",
+      "Regulatory and reputational damage; plaintext storage is explicitly called out in breach investigations"
+    ],
+    "detection_patterns": [
+      "SQL that compares the submitted password directly: `SELECT ... WHERE email = ? AND password = ?`",
+      "Schemas with a `password VARCHAR(20)` column and no hash format prefix (`$argon2id$`, `$2b$`) in stored values",
+      "\"Forgot password\" flows that email the user's existing password",
+      "Service passwords in plain configuration: `spring.datasource.password=` in `application.properties`, `<connectionStrings>` with `Password=` in `web.config`, `password:` in YAML"
+    ],
+    "remediation": [
+      "Store user passwords only as salted adaptive hashes: PHP `password_hash($pw, PASSWORD_ARGON2ID)` (or `PASSWORD_DEFAULT`) with `password_verify`",
+      "Migrate legacy plaintext rows by hashing them immediately and forcing a reset; do not wait for users to log in",
+      "Implement password reset with single-use, time-limited tokens instead of revealing stored passwords",
+      "Move service passwords that must be recoverable into a secret manager, or encrypt the configuration section (e.g. ASP.NET protected configuration) with access restricted to the service account"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "// Registration\n$stmt = $pdo->prepare('INSERT INTO users (email, password) VALUES (?, ?)');\n$stmt->execute([$email, $_POST['password']]);\n\n// Login\n$stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? AND password = ?');\n$stmt->execute([$email, $_POST['password']]);"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "// Registration\n$hash = password_hash($_POST['password'], PASSWORD_ARGON2ID);\n$pdo->prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)')->execute([$email, $hash]);\n\n// Login\n$stmt = $pdo->prepare('SELECT id, password_hash FROM users WHERE email = ?');\n$stmt->execute([$email]);\n$row = $stmt->fetch();\n$ok = $row && password_verify($_POST['password'], $row['password_hash']);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-256",
+        "url": "https://cwe.mitre.org/data/definitions/256.html"
+      },
+      {
+        "title": "OWASP Password Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Forgot Password Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-916-weak-password-hash",
+    "cwe_id": "CWE-916",
+    "title": "Weak Password Hashing (Insufficient Work Factor)",
+    "cwe_name": "Use of Password Hash With Insufficient Computational Effort",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "php",
+      "go",
+      "csharp"
+    ],
+    "description": "Passwords are hashed with a fast general-purpose function such as MD5, SHA-1 or SHA-256, or with a password hashing scheme configured with too few iterations or too little memory. Even with a unique salt, a GPU can test billions of SHA-256 candidates per second, so most human-chosen passwords fall quickly once the hash table leaks. Password hashing must be deliberately slow and, ideally, memory-hard.",
+    "prerequisites": [
+      "The attacker obtains the stored hashes (SQL injection, backup leak, compromised replica)",
+      "The hash function and parameters are known or discoverable from the hash format or source code",
+      "User passwords are drawn from guessable distributions (dictionary words, leaked-password lists)"
+    ],
+    "impact": [
+      "Offline cracking of a large fraction of passwords within hours or days on commodity GPUs",
+      "Account takeover in the breached application and on other sites through password reuse",
+      "Salts slow down bulk attacks only marginally when each guess is cheap"
+    ],
+    "detection_patterns": [
+      "`hashlib.sha256(salt + password)`, `hashlib.md5(password)`, `crypto.createHash('sha256').update(password)`, `MessageDigest.getInstance(\"SHA-256\")` applied to passwords",
+      "PBKDF2 with low iteration counts, e.g. `iterations=1000`, or the `Rfc2898DeriveBytes` legacy default of 1000 iterations with SHA-1",
+      "bcrypt with cost below 10 (`bcrypt.hashSync(pw, 4)`), or scrypt/argon2 with toy parameters copied from tests",
+      "Homegrown loops such as `for i in range(1000): h = sha1(h)`"
+    ],
+    "remediation": [
+      "Use argon2id with at least m=19456 KiB (19 MiB), t=2, p=1 (OWASP minimum), tuning memory upward as hardware allows",
+      "If argon2id is unavailable: scrypt with N=2^17, r=8, p=1; bcrypt with cost >= 10 (inputs limited to 72 bytes); or PBKDF2-HMAC-SHA256 with 600,000 iterations where FIPS-140 compliance is required",
+      "Store the algorithm and parameters with each hash (PHC string format) and rehash on successful login when parameters are outdated (`check_needs_rehash`)",
+      "Optionally add a pepper held in a secret manager or HSM, separate from the database"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "import hashlib, os\n\ndef hash_password(password: str) -> str:\n    salt = os.urandom(16)\n    # Salted, but a single SHA-256 is far too fast for password storage\n    digest = hashlib.sha256(salt + password.encode()).hexdigest()\n    return salt.hex() + \"$\" + digest"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "from argon2 import PasswordHasher\nfrom argon2.exceptions import VerifyMismatchError\nph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)  # argon2id\n\ndef hash_password(password: str) -> str:\n    return ph.hash(password)\n\ndef verify_password(stored: str, password: str) -> bool:\n    try:\n        return ph.verify(stored, password)\n    except VerifyMismatchError:\n        return False"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-916",
+        "url": "https://cwe.mitre.org/data/definitions/916.html"
+      },
+      {
+        "title": "OWASP Password Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-759-unsalted-hash",
+    "cwe_id": "CWE-759",
+    "title": "Unsalted One-Way Hash",
+    "cwe_name": "Use of a One-Way Hash without a Salt",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "python",
+      "java",
+      "javascript",
+      "php",
+      "csharp"
+    ],
+    "description": "Passwords or other low-entropy secrets are hashed without a per-value random salt, so the same input always produces the same digest. Attackers can use precomputed lookup or rainbow tables, crack all accounts in a single pass, and immediately see which users share a password.",
+    "prerequisites": [
+      "Access to the stored hash values",
+      "The hashed values are low-entropy (passwords, PINs, phone numbers, national IDs) and therefore enumerable",
+      "Precomputed tables or large wordlists exist for the hash function used (MD5, SHA-1 and SHA-256 tables are widely distributed)"
+    ],
+    "impact": [
+      "Instant reversal of common passwords through public precomputed hash tables",
+      "Each guess is tested against every account simultaneously, multiplying cracking throughput",
+      "Identical hashes reveal password reuse across accounts, prioritising targets",
+      "Hashed identifiers such as emails or phone numbers can be re-identified by hashing the whole input space"
+    ],
+    "detection_patterns": [
+      "Hash computed only from the secret: `sha256.Sum256([]byte(pw))`, `hashlib.sha1(pw.encode())`, `md5($password)`",
+      "User tables with a single hash column and no salt column or embedded salt (hashes of uniform length without `$` delimiters)",
+      "Duplicate hash values across rows of a credentials table",
+      "A single global constant used as the \"salt\" for all users (see also CWE-760)"
+    ],
+    "remediation": [
+      "Use a password hashing function that generates and embeds a random salt automatically (argon2id, bcrypt, scrypt)",
+      "When building on PBKDF2 directly, generate a unique salt of at least 16 bytes per password from a CSPRNG and store it beside the hash",
+      "Upgrade existing unsalted hashes by wrapping them (`argon2id(legacy_sha256)`) and replacing them with a direct hash at next login",
+      "For pseudonymising low-entropy identifiers, use a keyed HMAC with a secret key rather than a plain hash"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "import (\n\t\"crypto/sha256\"\n\t\"encoding/hex\"\n)\n\nfunc HashPassword(pw string) string {\n\tsum := sha256.Sum256([]byte(pw)) // same password -> same hash for every user\n\treturn hex.EncodeToString(sum[:])\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "import \"golang.org/x/crypto/bcrypt\"\n\n// bcrypt generates a random 128-bit salt and embeds it in the output string\nfunc HashPassword(pw string) (string, error) {\n\th, err := bcrypt.GenerateFromPassword([]byte(pw), 12)\n\treturn string(h), err\n}\n\nfunc CheckPassword(hash, pw string) bool {\n\treturn bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-759",
+        "url": "https://cwe.mitre.org/data/definitions/759.html"
+      },
+      {
+        "title": "OWASP Password Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-327-broken-crypto-algorithm",
+    "cwe_id": "CWE-327",
+    "title": "Broken or Risky Cryptographic Algorithm",
+    "cwe_name": "Use of a Broken or Risky Cryptographic Algorithm",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "java",
+      "javascript",
+      "php",
+      "go",
+      "csharp"
+    ],
+    "description": "The code protects data with a cipher, mode or protocol that is known to be weak, such as DES, 3DES, RC4, Blowfish with 64-bit blocks, ECB mode, or SSL/early TLS. These primitives have practical attacks (small key space, keystream biases, pattern leakage, lack of integrity) so the protection they appear to provide can be bypassed. Homegrown algorithms and unauthenticated encryption fall in the same category.",
+    "prerequisites": [
+      "Access to ciphertext at rest or in transit",
+      "For some attacks, the ability to observe many ciphertexts or submit chosen plaintexts or ciphertexts (e.g. a padding oracle)",
+      "The weak algorithm is fixed in code or still enabled in protocol configuration, so it cannot be negotiated away"
+    ],
+    "impact": [
+      "Recovery of plaintext: 56-bit DES keys can be brute-forced, RC4 biases leak repeated plaintext such as cookies",
+      "ECB mode encrypts identical blocks identically, revealing structure and allowing block cut-and-paste",
+      "Unauthenticated modes permit undetected ciphertext tampering and padding-oracle decryption",
+      "Compliance failures (PCI DSS, FIPS 140) for systems relying on deprecated algorithms"
+    ],
+    "detection_patterns": [
+      "Weak algorithms by name: `DES.new(...)`, `Cipher.getInstance(\"DESede/...\")`, `ARC4`, `RC2`, `Blowfish`, `openssl_encrypt($d, 'des-ede3-cbc', ...)`",
+      "ECB mode: `AES.MODE_ECB`, `\"AES/ECB/PKCS5Padding\"`, and Java `Cipher.getInstance(\"AES\")`, which defaults to ECB",
+      "Node `crypto.createCipher()` (deprecated, MD5-based key derivation with no IV) instead of `createCipheriv`",
+      "TLS configuration enabling SSLv3/TLS 1.0/TLS 1.1 or RC4/3DES/EXPORT cipher suites",
+      "Custom XOR or substitution \"encryption\" routines"
+    ],
+    "remediation": [
+      "Use authenticated encryption: AES-256-GCM or ChaCha20-Poly1305, with a unique nonce per message",
+      "Prefer high-level, misuse-resistant APIs (libsodium `crypto_secretbox`, Google Tink, Python `cryptography` AESGCM/Fernet) over raw cipher primitives",
+      "Restrict TLS to 1.2 and 1.3 with AEAD cipher suites only",
+      "Version ciphertext formats so algorithms can be replaced, and re-encrypt legacy data protected with DES/3DES/RC4/ECB"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "from Crypto.Cipher import DES\nfrom Crypto.Util.Padding import pad\n\nkey = load_key()                         # 8-byte DES key, 56 effective bits\ncipher = DES.new(key, DES.MODE_ECB)      # weak cipher and pattern-leaking mode\nciphertext = cipher.encrypt(pad(record, 8))"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import os\nfrom cryptography.hazmat.primitives.ciphers.aead import AESGCM\n\nkey = load_key()                         # 32 bytes from a KMS / secret manager\nnonce = os.urandom(12)                   # unique per encryption\nct = AESGCM(key).encrypt(nonce, record, b\"customer-record-v1\")  # AAD binds context\nblob = nonce + ct                        # store nonce with ciphertext"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-327",
+        "url": "https://cwe.mitre.org/data/definitions/327.html"
+      },
+      {
+        "title": "OWASP Cryptographic Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Transport Layer Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-328-weak-hash",
+    "cwe_id": "CWE-328",
+    "title": "Weak Hash Algorithm",
+    "cwe_name": "Use of Weak Hash",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "csharp",
+      "python",
+      "java",
+      "javascript",
+      "php",
+      "go"
+    ],
+    "description": "A hash function whose collision or preimage resistance is broken, chiefly MD5 or SHA-1, is used where an attacker benefits from producing two inputs with the same digest: integrity checks, digital signatures, certificates, content addressing or deduplication of untrusted data. Practical collision attacks exist for both algorithms, so the digest no longer uniquely identifies the content.",
+    "prerequisites": [
+      "The attacker can influence the data being hashed (uploaded files, signed documents, certificate requests, software packages)",
+      "A security decision depends on hash equality, such as accepting a file, trusting a signature or deduplicating content",
+      "Computing resources for collision search: identical-prefix MD5 collisions take seconds on a laptop, while SHA-1 chosen-prefix collisions are costly but feasible for funded attackers"
+    ],
+    "impact": [
+      "Substitution of a malicious file that matches a trusted MD5 or SHA-1 digest via chosen-prefix collisions",
+      "Forged signatures or certificates; the Flame malware used an MD5 chosen-prefix collision to forge a Microsoft code-signing certificate",
+      "SHA-1 collisions have been demonstrated publicly (SHAttered in 2017, chosen-prefix \"Shambles\" in 2020)"
+    ],
+    "detection_patterns": [
+      "`MD5.Create()`, `MD5.HashData()`, `SHA1.Create()`, `hashlib.md5(...)`, `hashlib.sha1(...)`, `MessageDigest.getInstance(\"MD5\")`, `crypto.createHash('md5')`, `md5_file()`, Go `crypto/md5`",
+      "Signature algorithms such as `SHA1withRSA`, `sha1WithRSAEncryption` certificates, or JWT/HMAC configuration using MD5",
+      "Download pages or update clients that verify packages with `.md5` checksum files",
+      "Content-addressed storage or dedup keys computed with MD5/SHA-1 over user-supplied files"
+    ],
+    "remediation": [
+      "Use SHA-256, SHA-384, SHA-512, SHA-3 or BLAKE2/BLAKE3 for integrity and fingerprinting",
+      "For authenticity, use HMAC-SHA256 with a secret key or a digital signature (Ed25519, ECDSA P-256, RSA-PSS); a bare hash served from the same location as the file proves nothing",
+      "Compare digests in constant time (`CryptographicOperations.FixedTimeEquals`, `hmac.compare_digest`)",
+      "Where MD5 is retained for non-security purposes (cache keys, ETags), mark it explicitly, e.g. Python `hashlib.md5(data, usedforsecurity=False)`",
+      "For password storage use an adaptive password hash instead (see CWE-916)"
+    ],
+    "vulnerable_example": {
+      "language": "csharp",
+      "code": "// Verify a downloaded update package against a published checksum\nbyte[] pkg = File.ReadAllBytes(path);\nstring actual = Convert.ToHexString(MD5.HashData(pkg));\nif (!actual.Equals(expectedMd5, StringComparison.OrdinalIgnoreCase))\n    throw new InvalidDataException(\"Checksum mismatch\");"
+    },
+    "secure_example": {
+      "language": "csharp",
+      "code": "byte[] pkg = File.ReadAllBytes(path);\nbyte[] actual = SHA256.HashData(pkg);\nbyte[] expected = Convert.FromHexString(expectedSha256);\nif (!CryptographicOperations.FixedTimeEquals(actual, expected))\n    throw new InvalidDataException(\"Checksum mismatch\");\n// Stronger still: verify a publisher signature (e.g. Ed25519) over the package"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-328",
+        "url": "https://cwe.mitre.org/data/definitions/328.html"
+      },
+      {
+        "title": "OWASP Cryptographic Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-326-inadequate-encryption-strength",
+    "cwe_id": "CWE-326",
+    "title": "Inadequate Encryption Strength",
+    "cwe_name": "Inadequate Encryption Strength",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "python",
+      "java",
+      "javascript",
+      "csharp"
+    ],
+    "description": "A sound algorithm is used with a key or parameter size too small to resist current attacks, for example RSA or Diffie-Hellman below 2048 bits, elliptic curves below 224 bits, or 40/56-bit export-grade ciphers. The algorithm itself is not broken, but the work required to recover the key is within reach of attackers.",
+    "prerequisites": [
+      "Access to ciphertexts, signatures, public keys or recorded key exchanges",
+      "Computational resources proportional to the key size; small keys may be broken cheaply on cloud hardware",
+      "For protocol downgrades, a man-in-the-middle position and a peer that still accepts weak parameters"
+    ],
+    "impact": [
+      "Factoring of short RSA moduli (512-bit keys are cheap to factor; RSA-768 was publicly factored in 2009) exposing private keys",
+      "Decryption of recorded TLS sessions or forging of signatures and certificates",
+      "Downgrade attacks such as FREAK (export RSA) and Logjam (512-bit export DH) against servers accepting weak parameters"
+    ],
+    "detection_patterns": [
+      "`rsa.GenerateKey(rand.Reader, 1024)`, `rsa.generate_private_key(public_exponent=65537, key_size=1024)`, `KeyPairGenerator.initialize(1024)`, `new RSACryptoServiceProvider(1024)`",
+      "`openssl genrsa 1024`, `ssl_dhparam` files with 1024-bit groups, `DHParameterSpec` with small primes",
+      "Curves such as `secp160r1` or `secp192r1`, or cipher suites containing `EXPORT`, `DES-CBC` or `NULL`",
+      "Keys derived from short passphrases or truncated to fewer bytes than the algorithm expects"
+    ],
+    "remediation": [
+      "RSA keys of at least 2048 bits, 3072 bits for data or signatures that must remain secure beyond 2030 (NIST SP 800-57)",
+      "Prefer elliptic-curve primitives: Ed25519 or ECDSA P-256 for signatures, X25519 or ECDHE P-256 for key agreement",
+      "AES-128 minimum; AES-256 for long-term confidentiality; finite-field DH groups of at least 2048 bits (RFC 7919 ffdhe2048+)",
+      "Disable export-grade and NULL cipher suites and reject CSRs or imported keys below policy minimums"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "import (\n\t\"crypto/rand\"\n\t\"crypto/rsa\"\n)\n\nfunc newSigningKey() (*rsa.PrivateKey, error) {\n\t// 1024-bit RSA: disallowed for signatures by NIST SP 800-131A since 2013\n\treturn rsa.GenerateKey(rand.Reader, 1024)\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "import (\n\t\"crypto/ed25519\"\n\t\"crypto/rand\"\n)\n\n// Ed25519 offers ~128-bit security with small, fast keys.\n// If RSA is required, use rsa.GenerateKey(rand.Reader, 3072).\nfunc newSigningKey() (ed25519.PublicKey, ed25519.PrivateKey, error) {\n\treturn ed25519.GenerateKey(rand.Reader)\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-326",
+        "url": "https://cwe.mitre.org/data/definitions/326.html"
+      },
+      {
+        "title": "OWASP Cryptographic Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Key Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-329-predictable-cbc-iv",
+    "cwe_id": "CWE-329",
+    "title": "Predictable IV with CBC Mode",
+    "cwe_name": "Generation of Predictable IV with CBC Mode",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "java",
+      "python",
+      "javascript",
+      "php",
+      "csharp"
+    ],
+    "description": "AES or another block cipher is used in CBC mode with an initialization vector that is constant, all zeros, a counter, derived from the key, or otherwise known to the attacker before encryption. CBC security requires an IV that is unpredictable for each message; otherwise equal plaintext prefixes produce equal ciphertext prefixes and chosen-plaintext attacks can confirm guesses about secret data.",
+    "prerequisites": [
+      "Access to multiple ciphertexts produced under the same key",
+      "For guess-confirmation attacks, the ability to have chosen plaintext encrypted and to predict the next IV",
+      "For key recovery when the IV equals the key, the ability to submit modified ciphertext and observe the resulting plaintext or error"
+    ],
+    "impact": [
+      "Leakage of whether two records or messages share a common prefix (e.g. identical card numbers or field values)",
+      "Byte-by-byte recovery of secrets in chosen-plaintext settings; the BEAST attack exploited predictable chained IVs in TLS 1.0 CBC",
+      "When the IV equals the key, an attacker who can obtain decryptions of modified ciphertext can recover the key"
+    ],
+    "detection_patterns": [
+      "Fixed or zero IVs: `new IvParameterSpec(new byte[16])`, `AES.new(key, AES.MODE_CBC, iv=b'\\x00' * 16)`, `createCipheriv('aes-256-cbc', key, Buffer.alloc(16))`",
+      "IV literals or constants in source, or IVs read from the same configuration entry as the key",
+      "IV derived from the key (`iv = key[:16]`), from a timestamp or record ID, or from the last block of the previous ciphertext",
+      "`openssl_encrypt($data, 'aes-256-cbc', $key, 0, $staticIv)` with `$staticIv` defined once"
+    ],
+    "remediation": [
+      "Generate a fresh 16-byte IV from a CSPRNG (`SecureRandom`, `os.urandom`, `crypto.randomBytes`, `random_bytes`) for every encryption and store it with the ciphertext",
+      "Never derive the IV from the key or reuse it across messages",
+      "Prefer AEAD modes (AES-GCM, ChaCha20-Poly1305); if CBC is mandatory, apply encrypt-then-MAC with HMAC-SHA256 and verify the MAC before decrypting",
+      "Use libraries that manage IVs internally (Tink, Fernet) to remove the choice from application code"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "SecretKeySpec key = new SecretKeySpec(keyBytes, \"AES\");\nIvParameterSpec iv = new IvParameterSpec(new byte[16]); // all-zero IV reused for every message\nCipher cipher = Cipher.getInstance(\"AES/CBC/PKCS5Padding\");\ncipher.init(Cipher.ENCRYPT_MODE, key, iv);\nbyte[] ct = cipher.doFinal(plaintext);"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "byte[] ivBytes = new byte[16];\nnew SecureRandom().nextBytes(ivBytes);                 // fresh, unpredictable IV per message\nCipher cipher = Cipher.getInstance(\"AES/CBC/PKCS5Padding\");\ncipher.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(ivBytes));\nbyte[] ct = cipher.doFinal(plaintext);\nbyte[] out = ByteBuffer.allocate(16 + ct.length).put(ivBytes).put(ct).array();\n// Then append an HMAC-SHA256 tag over out (encrypt-then-MAC), or switch to AES/GCM/NoPadding"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-329",
+        "url": "https://cwe.mitre.org/data/definitions/329.html"
+      },
+      {
+        "title": "OWASP Cryptographic Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-323-nonce-key-reuse",
+    "cwe_id": "CWE-323",
+    "title": "Nonce Reuse in Encryption",
+    "cwe_name": "Reusing a Nonce, Key Pair in Encryption",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "javascript",
+      "python",
+      "go",
+      "java",
+      "csharp"
+    ],
+    "description": "A nonce must be used only once with a given key, but the code encrypts multiple messages with the same key and nonce, typically through a constant nonce, a counter that resets on restart, or counters shared by several processes. In stream-based constructions (CTR, GCM, ChaCha20) this reuses the keystream, and in AES-GCM it additionally exposes the authentication subkey.",
+    "prerequisites": [
+      "Two or more ciphertexts produced under the same key and nonce",
+      "Partial knowledge of one plaintext (headers, JSON structure) to exploit the keystream relationship",
+      "A nonce scheme that can repeat: constant values, counters reset on restart, or random nonces too short for the message volume"
+    ],
+    "impact": [
+      "XOR of two ciphertexts equals XOR of their plaintexts, allowing recovery of both messages from known structure",
+      "AES-GCM nonce reuse leaks the GHASH key, enabling forgery of authenticated ciphertexts",
+      "Protocol-level nonce resets, as in the KRACK attacks on WPA2, allow decryption and packet injection"
+    ],
+    "detection_patterns": [
+      "Constant nonce or IV buffers passed to AEAD calls: `createCipheriv('aes-256-gcm', key, FIXED_IV)`, `AESGCM(key).encrypt(b'\\x00' * 12, ...)`, `aead.Seal(nil, staticNonce, pt, nil)`",
+      "Nonce counters held in memory and reset to zero at process start, or the same counter range used by multiple replicas",
+      "Nonces derived from second-resolution timestamps or from message IDs that can repeat",
+      "AES-CTR with a fixed initial counter block for every message"
+    ],
+    "remediation": [
+      "Generate a random 96-bit nonce per message for AES-GCM and rotate the key before roughly 2^32 encryptions (NIST SP 800-38D limit for random nonces)",
+      "Use XChaCha20-Poly1305 (192-bit nonce) when random nonces and very high message volumes are needed",
+      "Use nonce-misuse-resistant AES-GCM-SIV (RFC 8452) where uniqueness cannot be guaranteed",
+      "If counters are used, persist them atomically and give each sender its own key"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "const crypto = require('crypto');\nconst key = getDataKey();                                   // 32 bytes\nconst IV = Buffer.from('000000000000000000000000', 'hex');   // same 12-byte nonce for every message\n\nfunction encrypt(plaintext) {\n  const c = crypto.createCipheriv('aes-256-gcm', key, IV);\n  const ct = Buffer.concat([c.update(plaintext, 'utf8'), c.final()]);\n  return Buffer.concat([ct, c.getAuthTag()]);\n}"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "const crypto = require('crypto');\nconst key = getDataKey();                                   // rotated per 2^32 messages\n\nfunction encrypt(plaintext) {\n  const iv = crypto.randomBytes(12);                         // new 96-bit nonce per message\n  const c = crypto.createCipheriv('aes-256-gcm', key, iv);\n  const ct = Buffer.concat([c.update(plaintext, 'utf8'), c.final()]);\n  return Buffer.concat([iv, c.getAuthTag(), ct]);\n}"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2017-13077",
+        "summary": "KRACK: reinstallation of the WPA2 pairwise key during the 4-way handshake resets the nonce, causing nonce reuse."
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-323",
+        "url": "https://cwe.mitre.org/data/definitions/323.html"
+      },
+      {
+        "title": "OWASP Cryptographic Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-330-insufficiently-random-values",
+    "cwe_id": "CWE-330",
+    "title": "Insufficiently Random Values",
+    "cwe_name": "Use of Insufficiently Random Values",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "php",
+      "python",
+      "javascript",
+      "java",
+      "go",
+      "csharp"
+    ],
+    "description": "Security-relevant values such as reset tokens, session IDs, invitation codes or keys are generated from inputs an attacker can guess or enumerate: timestamps, process IDs, user IDs, email addresses or a small random range. Hashing those inputs does not add entropy, so the resulting value is only as unpredictable as the inputs. This is the general class; using a non-cryptographic PRNG is the specific case CWE-338.",
+    "prerequisites": [
+      "Knowledge or a narrow estimate of the generation inputs (approximate request time, user email, sequential IDs)",
+      "An endpoint that accepts the token and lacks strict rate limiting or expiry",
+      "Ability to trigger token generation for a target account at a known time, for example by requesting a password reset"
+    ],
+    "impact": [
+      "Account takeover by predicting password-reset or email-verification tokens",
+      "Session hijacking and access to resources protected by \"unguessable\" URLs",
+      "Weak cryptographic keys; the Debian OpenSSL flaw reduced key generation to about 32,768 possibilities"
+    ],
+    "detection_patterns": [
+      "Tokens built from guessable inputs: `md5($email . time())`, `sha1(str(user_id) + str(time.time()))`",
+      "Time-based identifiers used as secrets: PHP `uniqid()`, Python `uuid.uuid1()`, `Date.now().toString(36)`",
+      "Seeding with time or PID, e.g. `srand(time(NULL))`, `new Random(System.currentTimeMillis())`",
+      "Short numeric codes (4-6 digits) or truncated tokens accepted without attempt limits; sequential IDs in share or reset links"
+    ],
+    "remediation": [
+      "Generate secrets directly from the OS CSPRNG: PHP `random_bytes`, Python `secrets.token_urlsafe(32)`, Node `crypto.randomBytes`, Java `SecureRandom`, Go `crypto/rand`, .NET `RandomNumberGenerator.GetBytes`",
+      "Use at least 128 bits of entropy for bearer tokens and session identifiers",
+      "Make tokens single-use and short-lived, store only their hash, and rate-limit verification of short codes",
+      "Never derive secrets from timestamps, counters or user attributes, even when hashed"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "// Password-reset token built from guessable inputs\n$token = md5($user['email'] . time());\n$pdo->prepare('UPDATE users SET reset_token = ? WHERE id = ?')\n    ->execute([$token, $user['id']]);\nmail($user['email'], 'Password reset', \"https://app.example.com/reset?token=$token\");"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "$token = bin2hex(random_bytes(32));          // 256 bits from the OS CSPRNG\n$pdo->prepare('UPDATE users SET reset_token_hash = ?, reset_expires = ? WHERE id = ?')\n    ->execute([hash('sha256', $token), date('Y-m-d H:i:s', time() + 1800), $user['id']]);\nmail($user['email'], 'Password reset', \"https://app.example.com/reset?token=$token\");"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-330",
+        "url": "https://cwe.mitre.org/data/definitions/330.html"
+      },
+      {
+        "title": "OWASP Forgot Password Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html"
+      },
+      {
+        "title": "Python secrets module documentation",
+        "url": "https://docs.python.org/3/library/secrets.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-338-weak-prng",
+    "cwe_id": "CWE-338",
+    "title": "Cryptographically Weak PRNG",
+    "cwe_name": "Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "java",
+      "javascript",
+      "python",
+      "php",
+      "go",
+      "csharp"
+    ],
+    "description": "A general-purpose pseudo-random number generator designed for simulations or games is used to produce security-sensitive values. Generators such as Java `java.util.Random` (48-bit LCG), Python's Mersenne Twister and V8's xorshift128+ behind `Math.random()` are statistically uniform but predictable: observing a few outputs lets an attacker reconstruct the internal state and compute past and future values.",
+    "prerequisites": [
+      "The attacker can observe some outputs of the same generator instance (their own session IDs, tokens or IDs)",
+      "Knowledge of which PRNG the platform uses, which is fixed and public",
+      "Modest computation to solve for the generator state; public tools recover Mersenne Twister and V8 `Math.random()` state from observed outputs"
+    ],
+    "impact": [
+      "Prediction of session identifiers, CSRF tokens, API keys, password-reset tokens or OTPs issued to other users",
+      "Mersenne Twister state is fully recoverable from 624 consecutive 32-bit outputs",
+      "Manipulation of security-relevant randomness in lotteries, games or shuffles"
+    ],
+    "detection_patterns": [
+      "Java `new Random()`, `ThreadLocalRandom`, or `Math.random()` used for tokens, IDs or keys",
+      "JavaScript `Math.random().toString(36).slice(2)` for session or reset tokens",
+      "Python `random.random()`, `random.choice()`, `random.randint()` for secrets (Bandit B311)",
+      "PHP `rand()`, `mt_rand()`, `lcg_value()`, `str_shuffle()`; Go `math/rand` (gosec G404); .NET `System.Random`; C `rand()`"
+    ],
+    "remediation": [
+      "Use the platform CSPRNG: Java `SecureRandom`, Node `crypto.randomBytes` / `crypto.randomUUID` / `crypto.randomInt`, browser `crypto.getRandomValues`, Python `secrets`, PHP `random_bytes` / `random_int`, Go `crypto/rand`, .NET `RandomNumberGenerator`",
+      "Encode at least 16 random bytes (preferably 32) for tokens using URL-safe Base64 or hex",
+      "Enforce the rule with static analysis (Bandit B311, gosec G404, Semgrep or SonarQube weak-PRNG rules)"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "import java.util.Random;\n\npublic String newSessionId() {\n    Random rnd = new Random();   // 48-bit LCG: outputs reveal internal state\n    return Long.toHexString(rnd.nextLong()) + Long.toHexString(rnd.nextLong());\n}"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "import java.security.SecureRandom;\nimport java.util.Base64;\n\nprivate static final SecureRandom RNG = new SecureRandom();\n\npublic String newSessionId() {\n    byte[] b = new byte[32];\n    RNG.nextBytes(b);\n    return Base64.getUrlEncoder().withoutPadding().encodeToString(b);\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-338",
+        "url": "https://cwe.mitre.org/data/definitions/338.html"
+      },
+      {
+        "title": "Python secrets module documentation",
+        "url": "https://docs.python.org/3/library/secrets.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-295-improper-certificate-validation",
+    "cwe_id": "CWE-295",
+    "title": "Improper Certificate Validation",
+    "cwe_name": "Improper Certificate Validation",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures",
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "go",
+      "csharp",
+      "php"
+    ],
+    "description": "A TLS client or server does not validate, or incorrectly validates, the peer's X.509 certificate chain, for example by disabling verification, installing a trust-all trust manager or accepting self-signed certificates. The connection is still encrypted, but to an unauthenticated party, so a man-in-the-middle can present any certificate and read or modify the traffic.",
+    "prerequisites": [
+      "A network position between client and server (shared Wi-Fi, compromised router, DNS or ARP spoofing, malicious proxy)",
+      "Client code or configuration that disables or weakens chain validation",
+      "A certificate the attacker controls, such as a self-signed certificate or one from an untrusted CA, which the client then accepts"
+    ],
+    "impact": [
+      "Interception of credentials, API keys, tokens and personal data in transit",
+      "Tampering with responses, including injection of malicious software updates or payment details",
+      "Silent loss of server authentication that is not visible to users, unlike browser warnings"
+    ],
+    "detection_patterns": [
+      "Python `requests.get(url, verify=False)`, `ssl._create_unverified_context()`, `ssl.CERT_NONE`, often paired with `urllib3.disable_warnings()`",
+      "Node `rejectUnauthorized: false`, or `NODE_TLS_REJECT_UNAUTHORIZED=0` in environment files",
+      "Java `X509TrustManager` with empty `checkServerTrusted`, `TrustAllStrategy` / `TrustSelfSignedStrategy`",
+      "Go `tls.Config{InsecureSkipVerify: true}`; .NET `ServerCertificateCustomValidationCallback = (m, c, ch, e) => true` or `DangerousAcceptAnyServerCertificateValidator`",
+      "PHP/curl `CURLOPT_SSL_VERIFYPEER => false`, `curl -k` / `--insecure` in scripts"
+    ],
+    "remediation": [
+      "Keep the library's default chain validation enabled in all environments, including staging",
+      "For private PKI, add the internal CA to the trust bundle (e.g. `verify=\"/path/ca.pem\"`, a custom truststore) instead of disabling checks",
+      "Fail closed on validation errors and alert, never fall back to an unverified connection",
+      "Add tests that connections to invalid, expired and self-signed endpoints fail; consider certificate pinning with backup pins for high-risk mobile clients"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "import requests\nimport urllib3\n\nurllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)\nresp = requests.post(\"https://payments.internal/api/charge\",\n                     json=payload, verify=False, timeout=10)"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import requests\n\n# Verify against the internal CA that issued the service certificate\nresp = requests.post(\n    \"https://payments.internal/api/charge\",\n    json=payload,\n    verify=\"/etc/ssl/certs/internal-ca.pem\",\n    timeout=10,\n)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-295",
+        "url": "https://cwe.mitre.org/data/definitions/295.html"
+      },
+      {
+        "title": "OWASP Transport Layer Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-297-certificate-host-mismatch",
+    "cwe_id": "CWE-297",
+    "title": "Certificate Hostname Mismatch Not Detected",
+    "cwe_name": "Improper Validation of Certificate with Host Mismatch",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A07:2021-Identification and Authentication Failures",
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "java",
+      "python",
+      "javascript",
+      "go",
+      "csharp",
+      "c"
+    ],
+    "description": "The client verifies that the server certificate chains to a trusted CA but does not check that the certificate was issued for the host it intended to contact. Because publicly trusted certificates are easy to obtain for any domain an attacker controls, chain validation alone does not authenticate the server.",
+    "prerequisites": [
+      "A man-in-the-middle position on the network path",
+      "Any valid certificate from a trusted CA, such as a free certificate for an attacker-owned domain",
+      "Client code that overrides or disables hostname verification while keeping chain validation"
+    ],
+    "impact": [
+      "Full interception and modification of TLS traffic despite apparently valid certificates",
+      "Exposure of credentials and session tokens sent to internal or partner APIs",
+      "A false sense of security: functional tests with valid certificates pass, so the flaw goes unnoticed"
+    ],
+    "detection_patterns": [
+      "Java `setHostnameVerifier((h, s) -> true)`, `HttpsURLConnection.setDefaultHostnameVerifier(...)` returning true, Apache HttpClient `NoopHostnameVerifier.INSTANCE` or `ALLOW_ALL_HOSTNAME_VERIFIER`",
+      "Python `ctx.check_hostname = False` while `verify_mode` stays `CERT_REQUIRED`",
+      "Node `checkServerIdentity: () => undefined`",
+      ".NET validation callbacks that ignore `SslPolicyErrors.RemoteCertificateNameMismatch`; Go custom `VerifyPeerCertificate` that does not set `x509.VerifyOptions.DNSName`",
+      "Hand-written checks using `endsWith(\"example.com\")`, regexes or the certificate CN instead of subjectAltName; raw OpenSSL without `SSL_set1_host` / `X509_check_host`"
+    ],
+    "remediation": [
+      "Use the default hostname verifier of the TLS library and do not override it",
+      "When custom verification is unavoidable, call the library's RFC 6125 matcher (`SSL_set1_host`, `x509.VerifyOptions{DNSName: host}`, `ssl.match_hostname` semantics via `check_hostname=True`)",
+      "Match against subjectAltName entries only, and use IP SANs when connecting by IP address",
+      "Include a test that a valid certificate for a different hostname is rejected"
+    ],
+    "vulnerable_example": {
+      "language": "java",
+      "code": "HttpsURLConnection conn = (HttpsURLConnection)\n        new URL(\"https://api.partner.example/v1/orders\").openConnection();\n// Any CA-signed certificate is accepted, whatever host it was issued for\nconn.setHostnameVerifier((hostname, session) -> true);\ntry (InputStream in = conn.getInputStream()) {\n    process(in);\n}"
+    },
+    "secure_example": {
+      "language": "java",
+      "code": "HttpsURLConnection conn = (HttpsURLConnection)\n        new URL(\"https://api.partner.example/v1/orders\").openConnection();\n// No setHostnameVerifier call: the JDK default checks the certificate's\n// subjectAltName entries against \"api.partner.example\"\nconn.setConnectTimeout(5000);\ntry (InputStream in = conn.getInputStream()) {\n    process(in);\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-297",
+        "url": "https://cwe.mitre.org/data/definitions/297.html"
+      },
+      {
+        "title": "OWASP Transport Layer Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-319-cleartext-transmission",
+    "cwe_id": "CWE-319",
+    "title": "Cleartext Transmission of Sensitive Information",
+    "cwe_name": "Cleartext Transmission of Sensitive Information",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "python",
+      "javascript",
+      "java",
+      "php",
+      "csharp"
+    ],
+    "description": "Sensitive data such as credentials, tokens, personal or payment data is sent over a channel without transport encryption: plain HTTP, WebSocket (`ws://`), FTP, Telnet, SMTP without STARTTLS, LDAP, or a database or message-broker connection with TLS disabled. Anyone on the network path can read and alter it. Internal networks are not a substitute for encryption.",
+    "prerequisites": [
+      "Passive or active access to any network segment on the path (Wi-Fi, ISP, cloud VPC peering, compromised internal host)",
+      "The client or server accepts unencrypted connections or can be downgraded to them",
+      "Sensitive data or credentials travel on the channel, including internal service-to-service traffic assumed to be trusted"
+    ],
+    "impact": [
+      "Credential and session-token theft through passive sniffing",
+      "Exposure of regulated data (PII, card data, health records) in transit",
+      "Active modification of responses, e.g. injecting scripts into HTTP pages or altering API results"
+    ],
+    "detection_patterns": [
+      "`http://`, `ws://`, `ftp://`, `ldap://` endpoints in code and configuration for authenticated or sensitive traffic",
+      "Database and broker settings: `sslmode=disable`, `useSSL=false`, `Encrypt=False`, Redis or AMQP URLs without `rediss://` / `amqps://`",
+      "gRPC `grpc.WithInsecure()` / `insecure.NewCredentials()` between services",
+      "`smtplib.SMTP(host)` without `starttls()`; login forms posting to HTTP; missing `Strict-Transport-Security` header; cookies without `Secure`"
+    ],
+    "remediation": [
+      "Use TLS 1.2+ (preferably 1.3) for every hop, including internal service-to-service, database and cache connections",
+      "Configure clients to require and verify TLS: PostgreSQL `sslmode=verify-full` with `sslrootcert`, MySQL `ssl-mode=VERIFY_IDENTITY`, `rediss://`, gRPC TLS credentials",
+      "Serve web apps only over HTTPS with HSTS (`max-age=31536000; includeSubDomains`) and mark cookies `Secure`",
+      "Reject plaintext API requests instead of redirecting them, since the secret has already been sent by then; consider mTLS or a service mesh internally"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "// Connection to a managed PostgreSQL server across the network\ndsn := \"host=db.prod.example port=5432 user=app password=\" + os.Getenv(\"DB_PASSWORD\") +\n\t\" dbname=orders sslmode=disable\"\ndb, err := sql.Open(\"postgres\", dsn)\nif err != nil {\n\treturn err\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "// verify-full: require TLS and validate the server certificate chain and hostname\ndsn := \"host=db.prod.example port=5432 user=app password=\" + os.Getenv(\"DB_PASSWORD\") +\n\t\" dbname=orders sslmode=verify-full sslrootcert=/etc/ssl/certs/db-ca.pem\"\ndb, err := sql.Open(\"postgres\", dsn)\nif err != nil {\n\treturn err\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-319",
+        "url": "https://cwe.mitre.org/data/definitions/319.html"
+      },
+      {
+        "title": "OWASP Transport Layer Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP HTTP Strict Transport Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Strict_Transport_Security_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-311-missing-encryption",
+    "cwe_id": "CWE-311",
+    "title": "Missing Encryption of Sensitive Data",
+    "cwe_name": "Missing Encryption of Sensitive Data",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design",
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "csharp",
+      "python",
+      "java",
+      "javascript",
+      "go"
+    ],
+    "description": "The system design does not encrypt data that its sensitivity requires to be protected, typically regulated or high-value records held in databases, backups, exports, object storage or message queues. Access controls on the primary system are then the only barrier, and any secondary copy or compromise of the storage layer exposes the data in full. CWE-311 is the parent of the more specific cleartext storage (CWE-312) and cleartext transmission (CWE-319) weaknesses.",
+    "prerequisites": [
+      "Access to the storage layer or a copy of it: SQL injection, stolen backup, snapshot shared by mistake, compromised DBA or cloud account",
+      "Absence of encryption at the layer the attacker reaches (disk, database, application field)",
+      "Where encryption exists, keys are not separated from the data (for example stored in the same database or backup)"
+    ],
+    "impact": [
+      "Disclosure of national IDs, financial account numbers, health data or secrets from a single storage compromise",
+      "Breach-notification duties and penalties under regimes such as GDPR, HIPAA and PCI DSS",
+      "Data remains exposed in long-lived backups and replicas long after the primary is secured"
+    ],
+    "detection_patterns": [
+      "Data classification lists sensitive fields (PAN, SSN, bank account, medical data) mapped to plain `string`/`VARCHAR` columns",
+      "Infrastructure definitions without encryption: `StorageEncrypted: false` for RDS, unencrypted EBS volumes, `encrypted = false` in Terraform",
+      "Backups and exports written as plain files (`pg_dump > backup.sql`, CSV exports) to shared storage",
+      "Message payloads carrying full personal records through queues or event streams without payload encryption"
+    ],
+    "remediation": [
+      "Classify data and define which fields require encryption at rest, in backups and in transit",
+      "Enable storage-level encryption (TDE, encrypted volumes, S3 SSE-KMS) as a baseline for all data stores and backups",
+      "Apply field-level envelope encryption (AES-256-GCM with KMS-managed data keys) for the most sensitive fields so database access alone is insufficient",
+      "Keep keys separate from data in a KMS or HSM with rotation, and use tokenization or hashing when the original value is not needed"
+    ],
+    "vulnerable_example": {
+      "language": "csharp",
+      "code": "// National ID and bank account persisted as plain columns:\n// readable by anyone with DB, replica or backup access\nvar customer = new Customer {\n    Name = dto.Name,\n    NationalId = dto.NationalId,\n    BankAccount = dto.BankAccount\n};\ndb.Customers.Add(customer);\nawait db.SaveChangesAsync();"
+    },
+    "secure_example": {
+      "language": "csharp",
+      "code": "// Field-level AES-256-GCM; dataKey is a KMS-wrapped data key unwrapped at startup\nstatic byte[] Protect(byte[] dataKey, string value) {\n    byte[] nonce = RandomNumberGenerator.GetBytes(12);\n    byte[] pt = Encoding.UTF8.GetBytes(value);\n    byte[] ct = new byte[pt.Length], tag = new byte[16];\n    using var aes = new AesGcm(dataKey, 16);\n    aes.Encrypt(nonce, pt, ct, tag);\n    return nonce.Concat(tag).Concat(ct).ToArray();\n}\ncustomer.NationalIdEnc = Protect(dataKey, dto.NationalId);\ncustomer.BankAccountEnc = Protect(dataKey, dto.BankAccount);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-311",
+        "url": "https://cwe.mitre.org/data/definitions/311.html"
+      },
+      {
+        "title": "OWASP Cryptographic Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-312-cleartext-storage",
+    "cwe_id": "CWE-312",
+    "title": "Cleartext Storage of Sensitive Information",
+    "cwe_name": "Cleartext Storage of Sensitive Information",
+    "category": "Cryptography",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design",
+      "A02:2021-Cryptographic Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "javascript",
+      "java",
+      "python",
+      "php",
+      "csharp"
+    ],
+    "description": "Sensitive information is written in readable form to a location that other parties or code may access: browser `localStorage`, mobile preference files, cookies, local files, caches or core dumps. Because the storage is outside the application's direct control, it can be read by injected scripts, other apps, device backups or anyone with access to the device or file system.",
+    "prerequisites": [
+      "Read access to the storage location: XSS in the same origin, physical or backup access to a device, a malicious app with storage permissions, or file-system access",
+      "The stored values are long-lived or reusable (refresh tokens, card data, personal data)",
+      "No platform protection applied to the location (no Keychain or Keystore, no file encryption, readable by other apps or users)"
+    ],
+    "impact": [
+      "Theft of tokens and personal data by any script running in the page origin, since Web Storage is readable from JavaScript",
+      "Exposure of card data in violation of PCI DSS, which forbids storing CVV after authorization",
+      "Data leakage through device backups, shared computers and forensic recovery"
+    ],
+    "detection_patterns": [
+      "`localStorage.setItem` / `sessionStorage.setItem` with access tokens, refresh tokens, card or identity data",
+      "Android `SharedPreferences.putString(\"token\", ...)` or files in external storage; iOS `UserDefaults` used for secrets",
+      "Cookies holding personal data or account numbers in readable form",
+      "Application writes sensitive records to local JSON/CSV files, temp files or unencrypted caches (Redis, disk cache)"
+    ],
+    "remediation": [
+      "Do not persist sensitive data client-side unless strictly required; keep it server-side and reference it by an opaque ID",
+      "Keep session tokens in `HttpOnly; Secure; SameSite` cookies set by the server (backend-for-frontend pattern) instead of Web Storage",
+      "Use platform secure storage (iOS Keychain, Android Keystore-backed encryption) for credentials on mobile",
+      "Use payment-provider tokenization so raw card numbers never touch application storage, and send `Cache-Control: no-store` for sensitive responses"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "// SPA persists OAuth tokens and full card details in browser storage\nlocalStorage.setItem('accessToken', tokens.access_token);\nlocalStorage.setItem('refreshToken', tokens.refresh_token);\nlocalStorage.setItem('savedCard', JSON.stringify({\n  pan: card.number, cvv: card.cvv, exp: card.exp,\n}));"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "// Session lives in an HttpOnly, Secure, SameSite cookie set by the backend.\n// Card data goes to the payment provider's hosted field; only its token is kept.\nconst { paymentMethodId } = await paymentProvider.tokenize(cardElement);\nawait fetch('/api/payment-methods', {\n  method: 'POST',\n  credentials: 'include',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ paymentMethodId }),\n});"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-312",
+        "url": "https://cwe.mitre.org/data/definitions/312.html"
+      },
+      {
+        "title": "OWASP Cryptographic Storage Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-200-sensitive-information-exposure",
+    "cwe_id": "CWE-200",
+    "title": "Sensitive Information Exposure",
+    "cwe_name": "Exposure of Sensitive Information to an Unauthorized Actor",
+    "category": "Information Exposure",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [
+      "API3:2023-Broken Object Property Level Authorization"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "go",
+      "javascript",
+      "python",
+      "java",
+      "php",
+      "csharp"
+    ],
+    "description": "The product makes sensitive information available to an actor who is not authorized to see it, through API responses, page content, headers, metadata or observable differences in behavior. A frequent cause in APIs is serializing whole internal objects and relying on the client to hide fields. This is a broad parent class; error messages, logs, debug output and exposed files have their own, more specific entries.",
+    "prerequisites": [
+      "Ability to call the endpoint or view the page, often as an ordinary authenticated or anonymous user",
+      "Responses that include more fields or detail than the caller is entitled to",
+      "Client-side code that merely hides fields in the UI, leaving the full data visible in network traffic or developer tools"
+    ],
+    "impact": [
+      "Disclosure of password hashes, MFA secrets, internal flags or other users' personal data",
+      "User enumeration through differing responses or timing for existing and non-existing accounts",
+      "Reconnaissance data (internal hostnames, software versions) that enables follow-on attacks"
+    ],
+    "detection_patterns": [
+      "Returning ORM or DB entities directly: Go `json.NewEncoder(w).Encode(user)`, Express `res.json(user)`, Django REST `fields = '__all__'`, Spring returning `@Entity` objects",
+      "Struct fields like `PasswordHash`, `MFASecret`, `ResetToken` without `json:\"-\"` / `@JsonIgnore`",
+      "Different login or password-reset responses for unknown versus known accounts (\"user not found\" vs \"wrong password\")",
+      "Response headers such as `Server: Apache/2.4.x`, `X-Powered-By: Express`; GraphQL schemas exposing internal fields"
+    ],
+    "remediation": [
+      "Define explicit response DTOs or allowlist serializers per endpoint and role instead of serializing persistence models",
+      "Exclude secret fields at the model level (`json:\"-\"`, `@JsonIgnore`, `write_only`) as a second line of defense",
+      "Return uniform messages and comparable timing for authentication and account-recovery outcomes",
+      "Remove version banners (`app.disable('x-powered-by')`, nginx `server_tokens off`) and add contract tests that assert response schemas"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "type User struct {\n\tID           int64  `json:\"id\"`\n\tEmail        string `json:\"email\"`\n\tPasswordHash string `json:\"password_hash\"`\n\tMFASecret    string `json:\"mfa_secret\"`\n}\nfunc getUser(w http.ResponseWriter, r *http.Request) {\n\tu := loadUser(r.PathValue(\"id\"))\n\tjson.NewEncoder(w).Encode(u) // whole DB model sent to the client\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "type PublicUser struct {\n\tID    int64  `json:\"id\"`\n\tEmail string `json:\"email\"`\n}\nfunc getUser(w http.ResponseWriter, r *http.Request) {\n\tu := loadUserAuthorized(r.Context(), r.PathValue(\"id\")) // object-level check\n\tjson.NewEncoder(w).Encode(PublicUser{ID: u.ID, Email: u.Email})\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-200",
+        "url": "https://cwe.mitre.org/data/definitions/200.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-209-error-message-information-leak",
+    "cwe_id": "CWE-209",
+    "title": "Sensitive Information in Error Messages",
+    "cwe_name": "Generation of Error Message Containing Sensitive Information",
+    "category": "Error Handling",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design",
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "low",
+    "languages": [
+      "php",
+      "java",
+      "javascript",
+      "python",
+      "csharp"
+    ],
+    "description": "Error responses shown to users include internal details such as exception messages, stack traces, SQL statements, file paths, configuration values or library versions. The details are useful to developers but give attackers a map of the system and can directly reveal data.",
+    "prerequisites": [
+      "Ability to trigger an error, for example with malformed input, unexpected types or missing parameters",
+      "Detailed error output enabled in the production environment",
+      "Error details returned to the requester rather than only written to server-side logs"
+    ],
+    "impact": [
+      "Disclosure of database schema and query structure, which accelerates SQL injection",
+      "Leakage of file system paths, framework versions and internal hostnames",
+      "Stack traces may include function arguments; older PHP traces of `PDO::__construct` exposed the database password unless `zend.exception_ignore_args` is enabled"
+    ],
+    "detection_patterns": [
+      "Exception text sent to the client: `echo $e->getMessage()`, `res.status(500).send(err.stack)`, `e.printStackTrace(response.getWriter())`, `return str(e), 500`",
+      "PHP `display_errors = On` in production `php.ini`",
+      "ASP.NET `app.UseDeveloperExceptionPage()` outside development, `<customErrors mode=\"Off\"/>`",
+      "Spring Boot `server.error.include-stacktrace=always` or `include-message=always`"
+    ],
+    "remediation": [
+      "Install a global exception handler that returns a generic message with a correlation ID and logs the full detail server-side",
+      "Disable detailed errors in production: PHP `display_errors=Off`, `log_errors=On`, `zend.exception_ignore_args=On`; ASP.NET `UseExceptionHandler`; Spring `include-stacktrace=never`",
+      "Return standardised error bodies (e.g. RFC 9457 problem details) without internal exception text",
+      "Use identical messages for authentication failures to avoid revealing which part was wrong"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "try {\n    $pdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ?');\n    $stmt->execute([$_GET['id']]);\n} catch (PDOException $e) {\n    http_response_code(500);\n    echo 'Database error: ' . $e->getMessage() . '<pre>' . $e->getTraceAsString() . '</pre>';\n}"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "try {\n    $pdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);\n    $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ?');\n    $stmt->execute([$_GET['id']]);\n} catch (PDOException $e) {\n    $ref = bin2hex(random_bytes(8));\n    error_log(\"[$ref] \" . $e->getMessage());   // detail stays in server-side logs\n    http_response_code(500);\n    echo \"An internal error occurred. Reference: $ref\";\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-209",
+        "url": "https://cwe.mitre.org/data/definitions/209.html"
+      },
+      {
+        "title": "OWASP Error Handling Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-532-sensitive-data-in-logs",
+    "cwe_id": "CWE-532",
+    "title": "Sensitive Information in Log Files",
+    "cwe_name": "Insertion of Sensitive Information into Log File",
+    "category": "Logging & Monitoring",
+    "owasp_top10_2021": [
+      "A09:2021-Security Logging and Monitoring Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "java",
+      "go",
+      "php",
+      "csharp"
+    ],
+    "description": "The application writes passwords, session tokens, API keys, authorization headers or personal data into log files. Logs are copied to aggregation platforms, third-party services and backups and are readable by many more people than the production database, so secrets in logs are effectively widely disclosed.",
+    "prerequisites": [
+      "Read access to logs: operations staff, a log-management SaaS, a misconfigured log bucket or dashboard, or a compromised log pipeline",
+      "Logged values remain valid long enough to be reused (passwords, long-lived tokens)",
+      "Logging statements or middleware that record request bodies, headers or object dumps on security-sensitive paths"
+    ],
+    "impact": [
+      "Credential and session theft by anyone with log access; in 2018 Twitter disclosed a bug that wrote user passwords unmasked to an internal log",
+      "Regulatory exposure when personal or card data is replicated into log retention systems",
+      "Secrets persist for the full log retention period and in every downstream copy"
+    ],
+    "detection_patterns": [
+      "Log calls containing secret-bearing variables: `log.info(\"... password=%s\", password)`, `console.log(req.body)` on login routes, `logger.debug(\"token={}\", token)`",
+      "Logging whole requests or headers (`dict(request.headers)`, `req.headers`) which include `Authorization` and `Cookie`",
+      "Access logs recording secrets passed in query strings (`?api_key=`, `?token=`)",
+      "Exception logging that serializes full objects containing credentials or card numbers; DEBUG level enabled in production"
+    ],
+    "remediation": [
+      "Log an allowlist of structured fields rather than whole objects, requests or headers",
+      "Add redaction filters or processors for known secret keys (password, token, authorization, cookie, secret) and mask card numbers to at most first 6 / last 4 digits",
+      "Keep secrets out of URLs so web-server and proxy access logs cannot capture them",
+      "Run INFO or higher in production, restrict log access by role, set retention limits, and scan logs for secrets"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "import logging\nlog = logging.getLogger(\"auth\")\n\ndef login(username, password, request):\n    log.info(\"Login attempt user=%s password=%s\", username, password)\n    token = authenticate(username, password)\n    log.debug(\"Issued %s, headers=%s\", token, dict(request.headers))  # Authorization, Cookie\n    return token"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import logging, re\nlog = logging.getLogger(\"auth\")\nclass RedactFilter(logging.Filter):\n    PAT = re.compile(r\"(?i)(password|token|authorization|cookie|secret)=\\S+\")\n    def filter(self, record):\n        record.msg, record.args = self.PAT.sub(r\"\\1=[REDACTED]\", record.getMessage()), ()\n        return True\nlog.addFilter(RedactFilter())\n\ndef login(username, password, request):\n    log.info(\"Login attempt user=%s\", username)   # never log the secret itself\n    return authenticate(username, password)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-532",
+        "url": "https://cwe.mitre.org/data/definitions/532.html"
+      },
+      {
+        "title": "OWASP Logging Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-538-sensitive-data-in-accessible-file",
+    "cwe_id": "CWE-538",
+    "title": "Sensitive Information in Externally Accessible Files",
+    "cwe_name": "Insertion of Sensitive Information into Externally-Accessible File or Directory",
+    "category": "Information Exposure",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "javascript",
+      "php",
+      "python",
+      "java",
+      "go"
+    ],
+    "description": "Sensitive data is placed in files or directories that external actors can retrieve, most often because the web root or a public storage bucket contains more than the intended public assets. Typical examples are `.env` files, `.git` directories, database dumps, archive backups and production source maps deployed alongside the application.",
+    "prerequisites": [
+      "The file is reachable over HTTP or from public object storage",
+      "The path is guessable or discoverable through common-file wordlists, crawling or directory listing",
+      "A build or deployment process that copies the whole working directory instead of a curated artifact"
+    ],
+    "impact": [
+      "Leakage of environment secrets (database passwords, API keys) from exposed `.env` or configuration files",
+      "Reconstruction of full source code and commit history from an exposed `.git` directory with tools such as git-dumper",
+      "Disclosure of customer data from database dumps or exports left in public locations"
+    ],
+    "detection_patterns": [
+      "Static file serving rooted at the project directory: `express.static(__dirname)`, `app.static_folder = '.'`, Apache `DocumentRoot` pointing at the repository",
+      "Deployed artifacts containing `.git/`, `.svn/`, `.env`, `*.bak`, `*.sql`, `*.zip`, `*~`, `.DS_Store` or `phpinfo.php`",
+      "Production builds emitting `*.js.map` source maps with embedded source to the public CDN",
+      "Uploads with `ACL='public-read'` or bucket policies with `\"Principal\": \"*\"` for data exports; secrets left in Docker image layers"
+    ],
+    "remediation": [
+      "Serve only a dedicated build-output directory and keep configuration, VCS metadata and backups outside the web root",
+      "Deny dotfiles and backup extensions at the web server or framework level (`dotfiles: 'deny'`, nginx `location ~ /\\.`)",
+      "Add a CI check that the deployment artifact contains no `.git`, `.env`, dumps or source maps, and use `.dockerignore`",
+      "Enable S3 Block Public Access (or equivalent) and grant time-limited signed URLs for exports"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "const express = require('express');\nconst app = express();\n// Serves the project root: /.env, /.git/config, /backup.sql and /package.json are downloadable\napp.use(express.static(__dirname, { dotfiles: 'allow' }));\napp.listen(3000);"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "const path = require('path');\nconst express = require('express');\nconst app = express();\n// Only the build output directory is public, and dotfiles are refused\napp.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));\napp.listen(3000);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-538",
+        "url": "https://cwe.mitre.org/data/definitions/538.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-548-directory-listing",
+    "cwe_id": "CWE-548",
+    "title": "Directory Listing Enabled",
+    "cwe_name": "Exposure of Information Through Directory Listing",
+    "category": "Security Misconfiguration",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control",
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "go",
+      "javascript",
+      "python",
+      "java",
+      "php"
+    ],
+    "description": "The web server or application returns an automatically generated index of files when a directory without an index page is requested. Attackers can browse the file tree to find backups, configuration files, other users' uploads or internal documents that were never linked and were assumed to be hidden.",
+    "prerequisites": [
+      "HTTP access to a directory path on a server with automatic indexing enabled",
+      "The directory contains files whose secrecy relied on their names not being known",
+      "No authorization layer in front of the static file handler"
+    ],
+    "impact": [
+      "Discovery and download of backups, logs, configuration files and uploaded documents",
+      "Exposure of other users' files in shared upload directories",
+      "Detailed knowledge of application structure and file naming that aids targeted attacks"
+    ],
+    "detection_patterns": [
+      "Apache `Options Indexes` / `Options +Indexes`, nginx `autoindex on;`, IIS `<directoryBrowse enabled=\"true\" />`",
+      "Go `http.FileServer(http.Dir(...))` over directories without `index.html`, which renders a listing by default",
+      "Express `serve-index` middleware, Tomcat DefaultServlet `listings=true`, `python -m http.server` used in production",
+      "Responses with titles like \"Index of /\" or \"Directory listing for /\" found by scanners"
+    ],
+    "remediation": [
+      "Disable automatic indexes: Apache `Options -Indexes`, nginx `autoindex off;`, IIS `directoryBrowse enabled=\"false\"`, Tomcat `listings=false`",
+      "In application code, wrap file servers so directory requests return 404, and serve user files by ID through an authorized handler",
+      "Do not rely on unlinked file names for secrecy; protect sensitive files with authentication and authorization",
+      "Include directory-listing checks in DAST or configuration scanning"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "// http.FileServer renders an HTML index for any directory without index.html\nhttp.Handle(\"/files/\", http.StripPrefix(\"/files/\", http.FileServer(http.Dir(\"./uploads\"))))\nlog.Fatal(http.ListenAndServe(\":8080\", nil))"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "type noListingFS struct{ fs http.FileSystem }\nfunc (n noListingFS) Open(name string) (http.File, error) {\n\tf, err := n.fs.Open(name)\n\tif err == nil {\n\t\tif st, serr := f.Stat(); serr == nil && st.IsDir() {\n\t\t\tf.Close()\n\t\t\treturn nil, os.ErrNotExist // directories answer 404, never a listing\n\t\t}\n\t}\n\treturn f, err\n}\nhttp.Handle(\"/files/\", http.StripPrefix(\"/files/\", http.FileServer(noListingFS{http.Dir(\"./uploads\")})))"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-548",
+        "url": "https://cwe.mitre.org/data/definitions/548.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-434-unrestricted-file-upload",
+    "cwe_id": "CWE-434",
+    "title": "Unrestricted File Upload",
+    "cwe_name": "Unrestricted Upload of File with Dangerous Type",
+    "category": "File Handling",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "critical",
+    "languages": [
+      "php",
+      "javascript",
+      "python",
+      "java",
+      "csharp"
+    ],
+    "description": "The application accepts uploaded files without restricting their type and stores them where they can be executed or rendered, typically under the web root with the user-supplied file name. Uploading a server-side script (such as a `.php` or `.jsp` file) and then requesting it gives remote code execution; uploading HTML or SVG served from the application origin gives stored XSS.",
+    "prerequisites": [
+      "Access to an upload feature, sometimes without authentication",
+      "Uploaded files are stored in a location the web server executes or serves from the application origin",
+      "Validation relies on client-controlled data (file name, `Content-Type`) or an incomplete extension denylist"
+    ],
+    "impact": [
+      "Remote code execution through an uploaded web shell, leading to full server compromise",
+      "Stored cross-site scripting via HTML or SVG uploads served inline",
+      "Overwriting existing files or exhausting disk space with oversized uploads"
+    ],
+    "detection_patterns": [
+      "Saving with the original name: `move_uploaded_file($tmp, 'uploads/' . $_FILES['f']['name'])`, multer `filename: (req, file, cb) => cb(null, file.originalname)`",
+      "Type checks based on `$_FILES['f']['type']`, `file.mimetype` or the `Content-Type` header, which the client controls",
+      "Extension denylists that miss variants (`.phtml`, `.php5`, `.phar`, `.PhP`, `shell.php.jpg`, `.jspx`, `.aspx`)",
+      "Upload directories inside the web root with script execution enabled, and missing size limits"
+    ],
+    "remediation": [
+      "Allowlist permitted extensions and verify actual content server-side (`finfo`, magic bytes, image decoding)",
+      "Generate the stored file name and extension on the server (random ID) and store files outside the web root or in object storage",
+      "Serve user files from a separate domain with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`, and disable script execution in any upload directory",
+      "Enforce size limits, scan files with antivirus or content disarm and reconstruction, and re-encode images to strip active content"
+    ],
+    "vulnerable_example": {
+      "language": "php",
+      "code": "$name = $_FILES['avatar']['name'];\nif (strpos($_FILES['avatar']['type'], 'image/') === 0) {   // client-supplied Content-Type\n    move_uploaded_file($_FILES['avatar']['tmp_name'], __DIR__ . '/uploads/' . $name);\n    echo \"Uploaded to /uploads/$name\";                     // shell.php is now executable\n}"
+    },
+    "secure_example": {
+      "language": "php",
+      "code": "$allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];\n$f = $_FILES['avatar'];\nif ($f['error'] !== UPLOAD_ERR_OK || $f['size'] > 2 * 1024 * 1024) { http_response_code(400); exit; }\n$mime = (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);       // server-side content check\nif (!isset($allowed[$mime]) || getimagesize($f['tmp_name']) === false) { http_response_code(415); exit; }\n$stored = bin2hex(random_bytes(16)) . '.' . $allowed[$mime];          // server-chosen name\nmove_uploaded_file($f['tmp_name'], '/srv/app-data/avatars/' . $stored); // outside the web root"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2018-9206",
+        "summary": "Blueimp jQuery-File-Upload <= 9.22.0 allowed unauthenticated upload and execution of arbitrary files such as PHP web shells."
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-434",
+        "url": "https://cwe.mitre.org/data/definitions/434.html"
+      },
+      {
+        "title": "OWASP File Upload Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-73-external-control-of-file-path",
+    "cwe_id": "CWE-73",
+    "title": "External Control of File Name or Path",
+    "cwe_name": "External Control of File Name or Path",
+    "category": "File Handling",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control",
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "csharp",
+      "python",
+      "java",
+      "javascript",
+      "php",
+      "go"
+    ],
+    "description": "User-controlled input is used directly as, or to build, the name or path of a file the application reads, writes or deletes. Beyond classic `../` traversal (CWE-22), the attacker may supply an absolute path, a UNC path, a device name or an unexpected extension, and many path-joining APIs discard the base directory when the second argument is absolute.",
+    "prerequisites": [
+      "A request parameter, header, upload file name or archive entry name that flows into a file system call",
+      "The process has file system permissions beyond the intended directory",
+      "Insufficient validation or canonicalization of the supplied name before it is used"
+    ],
+    "impact": [
+      "Reading arbitrary files such as configuration, keys or `/etc/passwd`",
+      "Overwriting or deleting files, potentially leading to code execution or denial of service",
+      "On Windows, UNC paths (`\\\\attacker\\share\\x`) can make the server authenticate to an attacker host and leak NTLM hashes"
+    ],
+    "detection_patterns": [
+      "`Path.Combine(baseDir, userInput)` and Python `os.path.join(base, user)`, both of which return the user path unchanged when it is absolute",
+      "`new File(dir, request.getParameter(\"name\"))`, `fs.readFile(req.query.path)`, `open(request.args['file'])`, `os.Open(r.URL.Query().Get(\"f\"))`",
+      "File names taken from uploads (`file.originalname`, `IFormFile.FileName`) or archive entries used as destination paths",
+      "PHP `include($_GET['page'] . '.php')` or `file_get_contents($_GET['f'])`"
+    ],
+    "remediation": [
+      "Avoid user-supplied paths: map an ID or key to a server-side path (indirect object reference)",
+      "If a name is required, validate it against a strict allowlist pattern such as `^[A-Za-z0-9_-]{1,64}\\.pdf$` and reject separators, absolute, UNC and device names",
+      "Canonicalize and enforce containment: `Path.GetFullPath(...).StartsWith(base)`, Python `Path(base, name).resolve().is_relative_to(base)`, Java `toRealPath().startsWith(base)`",
+      "Run with least-privilege file system permissions and keep sensitive files outside directories the service can serve"
+    ],
+    "vulnerable_example": {
+      "language": "csharp",
+      "code": "// GET /reports?file=q3-summary.pdf\napp.MapGet(\"/reports\", (string file) =>\n{\n    // \"..\\web.config\" escapes; \"C:\\secrets\\key.pem\" replaces the base entirely\n    var path = Path.Combine(@\"C:\\app\\reports\", file);\n    return Results.File(path, \"application/pdf\");\n});"
+    },
+    "secure_example": {
+      "language": "csharp",
+      "code": "app.MapGet(\"/reports\", (string file) =>\n{\n    const string baseDir = @\"C:\\app\\reports\\\";\n    if (Path.GetFileName(file) != file || !file.EndsWith(\".pdf\", StringComparison.OrdinalIgnoreCase))\n        return Results.BadRequest();\n    var full = Path.GetFullPath(Path.Combine(baseDir, file));\n    if (!full.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))\n        return Results.BadRequest();\n    return Results.File(full, \"application/pdf\");\n});"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-73",
+        "url": "https://cwe.mitre.org/data/definitions/73.html"
+      },
+      {
+        "title": "OWASP Input Validation Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-377-insecure-temporary-file",
+    "cwe_id": "CWE-377",
+    "title": "Insecure Temporary File",
+    "cwe_name": "Insecure Temporary File",
+    "category": "File Handling",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "c",
+      "java",
+      "javascript",
+      "php",
+      "go"
+    ],
+    "description": "The program creates temporary files in a shared directory such as `/tmp` using predictable names, non-atomic \"check then create\" logic or permissive file modes. Another local user or process can pre-create the file, plant a symbolic link at the expected path, or read the contents while the file exists.",
+    "prerequisites": [
+      "Local access to the same host or shared temporary directory (multi-user servers, shared CI runners, containers sharing a volume)",
+      "A predictable file name or a race window between choosing the name and opening the file",
+      "Sensitive data written to the temporary file, or a privileged process that later acts on it"
+    ],
+    "impact": [
+      "Disclosure of sensitive temporary data (exports, decrypted content, credentials) to other local users",
+      "Symlink attacks that cause a privileged process to overwrite or chmod arbitrary files",
+      "Injection of attacker-controlled content into files the program later reads or executes"
+    ],
+    "detection_patterns": [
+      "Python `tempfile.mktemp()` (deprecated because it only returns a name), C `tmpnam`, `tempnam`, `mktemp()`",
+      "Hand-built paths: `\"/tmp/app_\" + pid`, `os.tmpdir() + '/export.csv'`, shell `/tmp/out.$$`",
+      "`if not os.path.exists(p): open(p, 'w')` style check-then-create sequences",
+      "Java `File.createTempFile` followed by writing sensitive data without restricting permissions, or temp files created with mode 0644/0666"
+    ],
+    "remediation": [
+      "Use atomic secure APIs: Python `tempfile.mkstemp`, `NamedTemporaryFile` or `TemporaryDirectory`; C `mkstemp` / `mkdtemp`; Java NIO `Files.createTempFile` (owner-only permissions on POSIX)",
+      "Open with `O_CREAT | O_EXCL` (and `O_NOFOLLOW` where available) and mode 0600",
+      "Prefer a per-user or per-service private temp directory (systemd `PrivateTmp=yes`, `$XDG_RUNTIME_DIR`)",
+      "Delete temporary files in a `finally` block or use context managers that clean up automatically"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "import tempfile\n\npath = tempfile.mktemp(suffix=\".csv\")   # returns a name only; nothing is created yet\nwith open(path, \"w\") as f:              # race: attacker can pre-create or symlink this path\n    f.write(export_rows(customers))\nupload(path)"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import os, tempfile\n\n# Created atomically with O_CREAT|O_EXCL and mode 0600\nfd, path = tempfile.mkstemp(suffix=\".csv\")\ntry:\n    with os.fdopen(fd, \"w\") as f:\n        f.write(export_rows(customers))\n    upload(path)\nfinally:\n    os.remove(path)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-377",
+        "url": "https://cwe.mitre.org/data/definitions/377.html"
+      },
+      {
+        "title": "Python tempfile module documentation",
+        "url": "https://docs.python.org/3/library/tempfile.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-732-incorrect-permission-assignment",
+    "cwe_id": "CWE-732",
+    "title": "Incorrect Permission Assignment for Critical Resource",
+    "cwe_name": "Incorrect Permission Assignment for Critical Resource",
+    "category": "Access Control",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control",
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "go",
+      "python",
+      "shell",
+      "c",
+      "java"
+    ],
+    "description": "A security-critical resource such as a private key, configuration file, script, socket or cloud storage bucket is created or left with permissions that let unintended users read or modify it. World-readable secrets disclose credentials; world-writable executables, cron jobs or configuration let a low-privileged user run code in a more privileged context.",
+    "prerequisites": [
+      "A local account, co-located container or other principal that falls within the overly broad permission",
+      "The resource is used by a higher-privileged process or contains sensitive data",
+      "Permissions set too broadly at creation time, by installer scripts or Dockerfiles, or by later `chmod` changes"
+    ],
+    "impact": [
+      "Theft of private keys, tokens and passwords from world-readable files",
+      "Local privilege escalation by modifying scripts, binaries or cron/systemd units executed as root",
+      "Public exposure of cloud storage objects through permissive bucket policies or ACLs"
+    ],
+    "detection_patterns": [
+      "`chmod 777`, `chmod -R 777` in scripts and Dockerfiles; `os.chmod(path, 0o777)`; `umask(0)`",
+      "Go `os.WriteFile(path, data, 0666)` or `os.MkdirAll(dir, 0777)` for secrets and configuration",
+      "Windows ACLs granting `Everyone` or `Users` full control on application directories",
+      "Bucket policies with `\"Principal\": \"*\"`, GCS `allUsers` / `allAuthenticatedUsers` bindings",
+      "Audits such as `find / -perm -o+w -type f` returning files used by privileged services"
+    ],
+    "remediation": [
+      "Create secrets with owner-only modes (0600 files, 0700 directories) and run services as dedicated non-root accounts",
+      "Set a restrictive process umask (027 or 077); mode arguments to create calls do not change existing files, so `chmod` existing ones explicitly",
+      "Ensure files executed or parsed by root are owned by root and not writable by group or others",
+      "Enforce least privilege for cloud resources with Block Public Access and IaC policy checks (Checkov, tfsec)"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "// Secrets directory and private key written with world access\nif err := os.MkdirAll(\"/etc/myapp/secrets\", 0777); err != nil {\n\treturn err\n}\n// Even after the usual 022 umask this key is world-readable (0644)\nif err := os.WriteFile(\"/etc/myapp/secrets/tls.key\", keyPEM, 0666); err != nil {\n\treturn err\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "// Directory usable only by the service account; key readable only by its owner\nif err := os.MkdirAll(\"/etc/myapp/secrets\", 0o700); err != nil {\n\treturn err\n}\nif err := os.WriteFile(\"/etc/myapp/secrets/tls.key\", keyPEM, 0o600); err != nil {\n\treturn err\n}\n// WriteFile keeps the mode of an existing file, so tighten it explicitly\nreturn os.Chmod(\"/etc/myapp/secrets/tls.key\", 0o600)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-732",
+        "url": "https://cwe.mitre.org/data/definitions/732.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-215-sensitive-data-in-debug-code",
+    "cwe_id": "CWE-215",
+    "title": "Sensitive Information in Debugging Code",
+    "cwe_name": "Insertion of Sensitive Information Into Debugging Code",
+    "category": "Security Misconfiguration",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "php",
+      "java",
+      "javascript",
+      "csharp"
+    ],
+    "description": "Debugging features such as framework debug modes, diagnostic endpoints and verbose dump statements remain enabled in a production build and reveal internal state to remote users. Unlike ordinary error handling, these features are designed to show everything, including environment variables, settings, local variables and in some cases an interactive console.",
+    "prerequisites": [
+      "Debug mode or debug routes deployed to an environment reachable by untrusted users",
+      "Ability to trigger the debug output, for example by causing an exception or requesting a known path",
+      "No release process that strips or disables debug configuration and endpoints"
+    ],
+    "impact": [
+      "Disclosure of configuration, environment variables, credentials and source excerpts in debug pages",
+      "Remote code execution where an interactive debugger is exposed, such as the Werkzeug console behind Flask `debug=True` if its PIN is obtained or disabled",
+      "Leakage of memory contents with secrets through endpoints like Spring Boot Actuator `/heapdump` or `/env`"
+    ],
+    "detection_patterns": [
+      "Django `DEBUG = True` in production settings; Flask `app.run(debug=True)` or `FLASK_DEBUG=1`",
+      "PHP `phpinfo()`, `var_dump()` / `print_r()` of request or config objects left in templates",
+      "Spring Boot `management.endpoints.web.exposure.include=*`; Symfony profiler `/_profiler` reachable in production",
+      "ASP.NET `<compilation debug=\"true\">`; Node started with `--inspect=0.0.0.0`; routes like `/debug`, `/env`, `/_dump` returning `os.environ` or `process.env`"
+    ],
+    "remediation": [
+      "Make production configuration default to debug off and enable debug only through explicit development-only settings",
+      "Register diagnostic routes only in development builds, and expose management endpoints (health, info only) on a separate, access-controlled port",
+      "Fail CI/CD when production manifests contain debug flags; run framework checks such as Django `manage.py check --deploy`",
+      "Run applications under a production server (gunicorn, uWSGI) rather than development servers"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "import os\nfrom flask import Flask\napp = Flask(__name__)\n\n@app.route(\"/debug/env\")                 # leftover troubleshooting endpoint\ndef dump_env():\n    return dict(os.environ)               # DB passwords, API keys\n\nif __name__ == \"__main__\":\n    app.run(host=\"0.0.0.0\", debug=True)  # Werkzeug debugger with interactive console"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import os\nfrom flask import Flask\napp = Flask(__name__)\n\nif os.environ.get(\"APP_ENV\") == \"development\":\n    from devtools import register_debug_routes   # never imported in production\n    register_debug_routes(app)\n\n# Production: gunicorn -w 4 -b 0.0.0.0:8000 app:app  (debug stays off)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-215",
+        "url": "https://cwe.mitre.org/data/definitions/215.html"
+      },
+      {
+        "title": "OWASP Error Handling Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html"
+      }
+    ]
+  }
+]

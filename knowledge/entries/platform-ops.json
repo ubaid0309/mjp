@@ -1,0 +1,1825 @@
+[
+  {
+    "slug": "cwe-120-classic-buffer-overflow",
+    "cwe_id": "CWE-120",
+    "title": "Classic Buffer Overflow",
+    "cwe_name": "Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "critical",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "The program copies an input buffer into a fixed-size destination buffer without verifying that the input fits. In C and C++ this typically happens with unbounded routines such as strcpy, strcat, gets or sprintf, where the copy length is determined by the source data rather than the destination size. Overflowing a stack buffer can overwrite saved return addresses and adjacent variables.",
+    "prerequisites": [
+      "Attacker-controlled data (network packet, file field, argv, environment variable) reaches the copy",
+      "Destination is a fixed-size stack or heap array",
+      "Copy length is derived from the source (NUL terminator) instead of the destination capacity",
+      "Exploit mitigations such as stack canaries, ASLR or non-executable stacks are absent or bypassable"
+    ],
+    "impact": [
+      "Arbitrary code execution by overwriting the saved return address or function pointers",
+      "Process crash and denial of service",
+      "Corruption of adjacent security-relevant variables such as authentication flags"
+    ],
+    "detection_patterns": [
+      "Calls to strcpy, strcat, gets, sprintf or scanf(\"%s\") with a fixed-size char array destination",
+      "char buf[N] declared on the stack and filled from recv(), read() or getenv() data",
+      "Loops copying bytes until a terminator with no index bound on the destination",
+      "Compiler warnings from -Wall -Wformat-overflow or static analyzers (clang-tidy, Coverity, CodeQL) on these calls"
+    ],
+    "remediation": [
+      "Use bounded APIs that take the destination size (snprintf, strlcpy where available, fgets) and check for truncation",
+      "Validate input length against sizeof(destination) before any copy and reject oversized input",
+      "Prefer std::string or std::vector in C++ so storage grows with the data",
+      "Compile with -D_FORTIFY_SOURCE=2, -fstack-protector-strong, PIE and non-executable stacks",
+      "Fuzz parsers with AddressSanitizer enabled to find overflows before release"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "void greet(const char *name) {\n    char buf[32];\n    strcpy(buf, name);          /* no length check */\n    printf(\"Hello %s\\n\", buf);\n}"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "void greet(const char *name) {\n    char buf[32];\n    if (strlen(name) >= sizeof(buf)) {\n        fprintf(stderr, \"name too long\\n\");\n        return;\n    }\n    snprintf(buf, sizeof(buf), \"%s\", name);\n    printf(\"Hello %s\\n\", buf);\n}"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2003-0352",
+        "summary": "Stack buffer overflow in the Windows RPC DCOM interface (MS03-026), exploited by the Blaster worm"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-120",
+        "url": "https://cwe.mitre.org/data/definitions/120.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-787-out-of-bounds-write",
+    "cwe_id": "CWE-787",
+    "title": "Out-of-bounds Write",
+    "cwe_name": "Out-of-bounds Write",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "critical",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "The software writes data past the end, or before the beginning, of the intended buffer. Besides unbounded string copies, common causes are memcpy calls whose length comes from untrusted input, off-by-one loop bounds and miscalculated offsets into heap allocations. Heap out-of-bounds writes corrupt allocator metadata and neighbouring objects and are a frequent root cause of remote code execution.",
+    "prerequisites": [
+      "A length, offset or index used in a write is influenced by external input",
+      "The write target is a fixed-size or previously allocated buffer whose size is not rechecked",
+      "No runtime bounds checking (plain C arrays, raw pointers, memcpy/memmove)"
+    ],
+    "impact": [
+      "Remote code execution via corrupted heap metadata, vtable pointers or function pointers",
+      "Silent data corruption of adjacent objects",
+      "Crash and denial of service",
+      "Privilege escalation when the vulnerable code runs in a kernel or setuid binary"
+    ],
+    "detection_patterns": [
+      "memcpy(dst, src, len) where len is read from a packet or file header and not compared with the size of dst",
+      "Loop conditions using <= against an array length, e.g. for (i = 0; i <= n; i++) buf[i] = ...",
+      "Pointer arithmetic such as *(p + offset) = v with offset derived from input",
+      "Writes after a realloc that may have shrunk the buffer"
+    ],
+    "remediation": [
+      "Compare every externally derived length with the actual destination capacity before memcpy or memmove",
+      "Track buffer size alongside the pointer (struct with ptr and len) and check it at each write",
+      "Use std::vector::at(), std::span or std::array in C++ for checked access in parsing code",
+      "Build test and fuzzing targets with -fsanitize=address to catch out-of-bounds writes",
+      "Consider memory-safe languages such as Rust for new parsers of untrusted data"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "struct msg { uint16_t len; uint8_t data[]; };\n\nvoid store(const struct msg *m) {\n    uint8_t record[256];\n    memcpy(record, m->data, m->len);   /* len up to 65535 */\n}"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "struct msg { uint16_t len; uint8_t data[]; };\n\nint store(const struct msg *m) {\n    uint8_t record[256];\n    if (m->len > sizeof(record))\n        return -1;                     /* reject oversized */\n    memcpy(record, m->data, m->len);\n    return 0;\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-787",
+        "url": "https://cwe.mitre.org/data/definitions/787.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-125-out-of-bounds-read",
+    "cwe_id": "CWE-125",
+    "title": "Out-of-bounds Read",
+    "cwe_name": "Out-of-bounds Read",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "The software reads data past the end, or before the beginning, of the intended buffer. It typically occurs when a length field supplied by a peer is trusted and used to read or echo back memory without checking it against the amount of data actually received. The bytes read may contain secrets such as private keys, session tokens or heap pointers that defeat ASLR.",
+    "prerequisites": [
+      "The program trusts a declared length or index from the input rather than the received size",
+      "Read results are returned to the attacker (echo, error message, response body)",
+      "No bounds checking on memcpy source ranges or array reads"
+    ],
+    "impact": [
+      "Disclosure of process memory including keys, passwords and other users' data",
+      "Leak of pointer values that helps bypass ASLR for a follow-up exploit",
+      "Crash when the read reaches an unmapped page"
+    ],
+    "detection_patterns": [
+      "memcpy(out, in + off, claimed_len) where claimed_len comes from the message and is not compared with the received length",
+      "Array reads table[idx] where idx comes from input and is only checked for an upper bound or not at all",
+      "String functions (strlen, strcpy) applied to buffers that may lack a NUL terminator",
+      "Parsers that advance a pointer by a header-specified amount without checking remaining bytes"
+    ],
+    "remediation": [
+      "Validate declared lengths against the number of bytes actually received before reading",
+      "Keep an explicit end pointer or remaining-length counter in parsers and check it before every read",
+      "Ensure buffers passed to string functions are NUL-terminated or use length-bounded variants (strnlen, memchr)",
+      "Run fuzzers with AddressSanitizer to detect heap-buffer-overflow reads"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "/* reply echoes 'payload_len' bytes back to the peer */\nvoid heartbeat(const uint8_t *rec, size_t rec_len, uint8_t *out) {\n    uint16_t payload_len = (rec[1] << 8) | rec[2];\n    memcpy(out, rec + 3, payload_len);   /* trusts peer length */\n}"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "int heartbeat(const uint8_t *rec, size_t rec_len, uint8_t *out) {\n    if (rec_len < 3) return -1;\n    uint16_t payload_len = (rec[1] << 8) | rec[2];\n    if ((size_t)payload_len + 3 > rec_len)\n        return -1;                      /* silently discard */\n    memcpy(out, rec + 3, payload_len);\n    return payload_len;\n}"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2014-0160",
+        "summary": "Heartbleed: OpenSSL TLS heartbeat trusted the payload length and returned up to 64 KB of server memory"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-125",
+        "url": "https://cwe.mitre.org/data/definitions/125.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-416-use-after-free",
+    "cwe_id": "CWE-416",
+    "title": "Use After Free",
+    "cwe_name": "Use After Free",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "critical",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "The program continues to use a pointer after the memory it refers to has been freed. If the allocator has reused that memory for another object, reads and writes through the dangling pointer operate on attacker-influenced data. Use-after-free bugs commonly arise from unclear object ownership, callbacks that free their own context, and error paths that free an object still referenced elsewhere.",
+    "prerequisites": [
+      "A pointer to the freed object remains reachable (global, struct field, container, callback)",
+      "The attacker can trigger the free and then a later use, often through event ordering",
+      "The attacker can influence what gets allocated into the freed chunk (heap grooming)"
+    ],
+    "impact": [
+      "Arbitrary code execution through hijacked virtual function tables or function pointers",
+      "Information disclosure from the reallocated object",
+      "Heap corruption and crashes"
+    ],
+    "detection_patterns": [
+      "free(p) or delete p not followed by setting the pointer to NULL when the pointer outlives the call",
+      "Error-handling paths that free an object which the caller also frees or uses",
+      "Raw pointers stored in containers or callbacks while ownership is held elsewhere",
+      "Iterating a list while a callback inside the loop may remove and free the current node"
+    ],
+    "remediation": [
+      "Define a single owner for each object and use std::unique_ptr or std::shared_ptr in C++ instead of raw new/delete",
+      "Set pointers to NULL immediately after free and check for NULL before use",
+      "Use reference counting or deferred freeing for objects shared with callbacks",
+      "Test with AddressSanitizer (heap-use-after-free reports) and fuzz event sequences"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "struct session *s = lookup(id);\nif (s->expired) {\n    free(s);\n}\nlog_access(s->user);    /* s may already be freed */"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "struct session *s = lookup(id);\nlog_access(s->user);\nif (s->expired) {\n    remove_from_table(id);\n    free(s);\n    s = NULL;\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-416",
+        "url": "https://cwe.mitre.org/data/definitions/416.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-415-double-free",
+    "cwe_id": "CWE-415",
+    "title": "Double Free",
+    "cwe_name": "Double Free",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "The program calls free() twice on the same memory address. This corrupts heap allocator metadata, for example by placing the same chunk on a free list twice, so that two later allocations return the same memory. It usually results from duplicated cleanup code across error paths or from two objects both believing they own the same buffer.",
+    "prerequisites": [
+      "Two code paths (normal and error handling) each release the same pointer",
+      "Shallow-copied structs share a heap buffer and both are destroyed",
+      "The attacker can steer execution into the error path, e.g. by sending malformed input"
+    ],
+    "impact": [
+      "Heap corruption that can be turned into arbitrary write and code execution",
+      "Allocator abort (e.g. glibc 'double free detected') causing denial of service",
+      "Two live objects aliasing the same memory, leading to data confusion"
+    ],
+    "detection_patterns": [
+      "Multiple free() calls on the same variable without reassignment in between",
+      "goto cleanup labels where some branches free resources before jumping",
+      "Structs copied by value (memcpy or assignment) that contain owned pointers and have destructors",
+      "C++ classes holding raw owning pointers without a user-defined copy constructor (rule of three violation)"
+    ],
+    "remediation": [
+      "Use a single cleanup path and set pointers to NULL after free so that a repeated free(NULL) is harmless",
+      "Make ownership explicit: transfer it with std::move and std::unique_ptr rather than copying raw pointers",
+      "Delete or implement copy constructors and assignment operators for classes owning heap memory",
+      "Run tests under AddressSanitizer or Valgrind to detect attempting double-free"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "char *buf = malloc(len);\nif (parse(buf, len) < 0) {\n    free(buf);\n    goto out;\n}\n...\nout:\n    free(buf);          /* freed twice on error */\n    return -1;"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "char *buf = malloc(len);\nint rc = -1;\nif (parse(buf, len) < 0)\n    goto out;\n...\nrc = 0;\nout:\n    free(buf);\n    buf = NULL;\n    return rc;"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-415",
+        "url": "https://cwe.mitre.org/data/definitions/415.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-476-null-pointer-dereference",
+    "cwe_id": "CWE-476",
+    "title": "NULL Pointer Dereference",
+    "cwe_name": "NULL Pointer Dereference",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "The program dereferences a pointer that it expects to be valid but which is NULL. Typical sources are unchecked return values from malloc, lookup functions that return NULL when an item is not found, and optional fields in parsed messages. In user space the result is usually a crash; in kernels or environments where page zero can be mapped it has historically led to code execution.",
+    "prerequisites": [
+      "A function that can return NULL (malloc, fopen, getenv, strchr, map lookup) has its result used unchecked",
+      "Attacker can force the NULL condition, e.g. by omitting an optional field or exhausting memory",
+      "The crash affects a shared service (daemon, kernel, worker pool)"
+    ],
+    "impact": [
+      "Denial of service by crashing the process or kernel",
+      "Possible code execution in kernel context on systems where address zero is mappable",
+      "Bypass of logic that never runs because the process terminates mid-transaction"
+    ],
+    "detection_patterns": [
+      "Use of malloc/calloc/realloc results without a NULL check",
+      "Chained access such as find_user(name)->role without checking the lookup result",
+      "Pointer checked for NULL after it has already been dereferenced",
+      "Parsers that assume optional message elements are always present"
+    ],
+    "remediation": [
+      "Check every pointer returned by allocation, lookup and parsing functions before use",
+      "Return explicit error codes and handle them at each call site",
+      "Use references, std::optional or not_null wrappers in C++ to express non-null contracts",
+      "Enable static analysis (clang --analyze, -fanalyzer in GCC) that reports possible NULL dereferences"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "const char *home = getenv(\"HOME\");\nsize_t n = strlen(home);          /* crashes if HOME unset */\nstruct user *u = find_user(name);\nprintf(\"%s\\n\", u->role);"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "const char *home = getenv(\"HOME\");\nif (home == NULL) home = \"/tmp\";\nsize_t n = strlen(home);\nstruct user *u = find_user(name);\nif (u == NULL) {\n    return ERR_NOT_FOUND;\n}\nprintf(\"%s\\n\", u->role);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-476",
+        "url": "https://cwe.mitre.org/data/definitions/476.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-190-integer-overflow",
+    "cwe_id": "CWE-190",
+    "title": "Integer Overflow or Wraparound",
+    "cwe_name": "Integer Overflow or Wraparound",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "An arithmetic operation produces a value larger than the integer type can hold, so it wraps around to a small or negative number. When the result is used as an allocation size, such as malloc(count * size), the allocator returns a buffer far smaller than the code assumes, and the following loop writes out of bounds. Signed overflow is additionally undefined behaviour in C and C++.",
+    "prerequisites": [
+      "Attacker controls one or more operands (element count, width/height, length field)",
+      "The result is used for memory allocation, bounds checks or array indexing",
+      "No overflow check precedes the multiplication or addition"
+    ],
+    "impact": [
+      "Undersized heap allocation followed by heap buffer overflow",
+      "Bypassed length checks (e.g. len + header < max passing after wraparound)",
+      "Incorrect financial or quota calculations"
+    ],
+    "detection_patterns": [
+      "malloc(n * sizeof(T)) or malloc(a + b) where n, a or b come from input",
+      "Image or media parsers computing width * height * bpp in 32-bit integers",
+      "Length checks of the form if (off + len > size) where off + len can wrap",
+      "Mixing signed and unsigned types in size calculations"
+    ],
+    "remediation": [
+      "Check before multiplying: if (n > SIZE_MAX / sizeof(T)) reject",
+      "Use calloc(n, size) or reallocarray(), which perform the overflow check internally",
+      "Use checked arithmetic builtins such as __builtin_mul_overflow and __builtin_add_overflow",
+      "Rewrite bounds checks to avoid wraparound: if (len > size || off > size - len)",
+      "Compile tests with -fsanitize=integer or -fsanitize=undefined"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "uint32_t count = read_u32(pkt);\nstruct item *items = malloc(count * sizeof(struct item));\nfor (uint32_t i = 0; i < count; i++)\n    items[i] = read_item(pkt);"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "uint32_t count = read_u32(pkt);\nif (count == 0 || count > MAX_ITEMS)\n    return -1;\nstruct item *items = calloc(count, sizeof(struct item));\nif (items == NULL)\n    return -1;\nfor (uint32_t i = 0; i < count; i++)\n    items[i] = read_item(pkt);"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2015-1538",
+        "summary": "Stagefright: integer overflow in Android libstagefright MP4 sample table parsing leading to heap overflow"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-190",
+        "url": "https://cwe.mitre.org/data/definitions/190.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-676-dangerous-function",
+    "cwe_id": "CWE-676",
+    "title": "Use of Potentially Dangerous Function",
+    "cwe_name": "Use of Potentially Dangerous Function",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "c",
+      "cpp"
+    ],
+    "description": "The code calls a library function that can be used safely but is easy to misuse in a way that introduces a vulnerability. In C the classic examples are gets (removed in C11 because it cannot be used safely), strcpy, strcat, sprintf, strtok and atoi. The weakness is the choice of API itself, which makes the program's safety depend on every caller getting manual bounds checks right.",
+    "prerequisites": [
+      "The codebase uses banned or high-risk C library functions",
+      "Arguments to those functions can be influenced by external input",
+      "No coding standard or compiler check prevents their introduction"
+    ],
+    "impact": [
+      "Buffer overflows when length assumptions are wrong",
+      "Silent integer conversion errors (atoi returning 0 on invalid input, no error signalling)",
+      "Thread-safety bugs from functions with hidden static state such as strtok or localtime"
+    ],
+    "detection_patterns": [
+      "Any call to gets(); it has no length parameter and is never safe",
+      "strcpy, strcat, sprintf, vsprintf, scanf(\"%s\") on fixed-size buffers",
+      "atoi/atol used to parse untrusted numbers instead of strtol with errno and endptr checks",
+      "Non-reentrant functions (strtok, localtime, asctime) used in multithreaded servers"
+    ],
+    "remediation": [
+      "Maintain a banned-function list and enforce it in CI (e.g. a grep check or #pragma GCC poison gets strcpy)",
+      "Replace gets with fgets, sprintf with snprintf, strtok with strtok_r, atoi with strtol plus error checks",
+      "Treat compiler deprecation warnings for these functions as errors",
+      "Wrap remaining legacy calls in reviewed helper functions that enforce bounds"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "char line[128];\ngets(line);                 /* unbounded read */\nint port = atoi(line);      /* no error detection */"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "char line[128];\nif (fgets(line, sizeof(line), stdin) == NULL) return -1;\nchar *end;\nerrno = 0;\nlong port = strtol(line, &end, 10);\nif (errno || end == line || port < 1 || port > 65535)\n    return -1;"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-676",
+        "url": "https://cwe.mitre.org/data/definitions/676.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-129-improper-array-index-validation",
+    "cwe_id": "CWE-129",
+    "title": "Improper Validation of Array Index",
+    "cwe_name": "Improper Validation of Array Index",
+    "category": "Memory Safety",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "c",
+      "cpp",
+      "java"
+    ],
+    "description": "The program uses an untrusted value as an array index without verifying that it lies within the array's valid range. A common mistake is checking only the upper bound with a signed integer, which lets negative indices pass and access memory before the array. In memory-unsafe languages this becomes an out-of-bounds read or write; in managed languages it causes unhandled exceptions.",
+    "prerequisites": [
+      "An index, slot number or enum value is taken from a request, file or IPC message",
+      "The index is a signed type, or only one side of the range is checked",
+      "The array is accessed without runtime bounds checking"
+    ],
+    "impact": [
+      "Out-of-bounds write enabling code execution (e.g. overwriting a function pointer table entry)",
+      "Out-of-bounds read disclosing memory",
+      "Crash or ArrayIndexOutOfBoundsException causing denial of service"
+    ],
+    "detection_patterns": [
+      "handlers[cmd]() or table[idx] where cmd/idx come from input",
+      "Checks like if (idx < MAX) with idx declared as int, missing idx >= 0",
+      "Indices validated against a different array length than the one accessed",
+      "Values from switch-less enum casts used directly as indexes"
+    ],
+    "remediation": [
+      "Check both bounds: 0 <= idx && idx < length, or use an unsigned type plus an upper bound",
+      "Derive the bound from the array itself (sizeof(arr)/sizeof(arr[0]) or arr.length) rather than a separate constant",
+      "Use checked accessors such as std::vector::at() or std::array::at() for untrusted indices",
+      "Map external identifiers to internal indices through a lookup table instead of using them directly"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "static handler_fn handlers[8];\n\nvoid dispatch(int cmd) {\n    if (cmd < 8)               /* negative values pass */\n        handlers[cmd]();\n}"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "static handler_fn handlers[8];\n#define NHANDLERS (sizeof(handlers) / sizeof(handlers[0]))\n\nvoid dispatch(int cmd) {\n    if (cmd < 0 || (size_t)cmd >= NHANDLERS || handlers[cmd] == NULL)\n        return;\n    handlers[cmd]();\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-129",
+        "url": "https://cwe.mitre.org/data/definitions/129.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-362-race-condition",
+    "cwe_id": "CWE-362",
+    "title": "Race Condition",
+    "cwe_name": "Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
+    "category": "Concurrency",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "java",
+      "go",
+      "sql"
+    ],
+    "description": "Two or more concurrent operations access a shared resource and at least one modifies it, without synchronization that guarantees a consistent order. In web applications the typical case is a read-modify-write of a balance, stock count or coupon usage counter, where parallel requests all read the same old value. Attackers exploit this by sending many identical requests at the same moment.",
+    "prerequisites": [
+      "Shared state (database row, cache key, in-memory variable) is read and then written in separate steps",
+      "Multiple workers, threads or processes handle requests concurrently",
+      "The attacker can issue parallel requests, e.g. via HTTP/2 multiplexing or scripted clients"
+    ],
+    "impact": [
+      "Double spending of account balance, gift cards or vouchers",
+      "Exceeding limits such as one-per-user offers or inventory counts",
+      "Corrupted data structures and inconsistent application state"
+    ],
+    "detection_patterns": [
+      "SELECT balance followed by UPDATE balance = <computed value> without a transaction lock",
+      "ORM code like obj.count = obj.count + 1; obj.save() in request handlers",
+      "Shared in-memory dicts or counters modified by threads without a lock",
+      "Go maps or variables accessed from multiple goroutines (reported by go test -race)"
+    ],
+    "remediation": [
+      "Perform the update atomically in the database: UPDATE ... SET balance = balance - ? WHERE id = ? AND balance >= ?",
+      "Use row locks (SELECT ... FOR UPDATE) or SERIALIZABLE transactions for multi-step updates",
+      "Use unique constraints or idempotency keys so duplicate operations fail",
+      "Protect in-process shared state with mutexes or use atomic types",
+      "Load-test critical flows with parallel requests to verify the invariant holds"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "def withdraw(conn, account_id, amount):\n    bal = conn.execute(\"SELECT balance FROM accounts WHERE id=?\",\n                       (account_id,)).fetchone()[0]\n    if bal >= amount:\n        conn.execute(\"UPDATE accounts SET balance=? WHERE id=?\",\n                     (bal - amount, account_id))\n        conn.commit()"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "def withdraw(conn, account_id, amount):\n    cur = conn.execute(\n        \"UPDATE accounts SET balance = balance - ? \"\n        \"WHERE id = ? AND balance >= ?\",\n        (amount, account_id, amount))\n    conn.commit()\n    if cur.rowcount != 1:\n        raise InsufficientFunds()"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2016-5195",
+        "summary": "Dirty COW: race condition in the Linux kernel copy-on-write handling allowing writes to read-only memory mappings"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-362",
+        "url": "https://cwe.mitre.org/data/definitions/362.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-367-toctou-race-condition",
+    "cwe_id": "CWE-367",
+    "title": "Time-of-check Time-of-use (TOCTOU)",
+    "cwe_name": "Time-of-check Time-of-use (TOCTOU) Race Condition",
+    "category": "Concurrency",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "c",
+      "python"
+    ],
+    "description": "The program checks a property of a resource, such as a file's permissions or existence, and later uses the resource assuming the property still holds. Between the check and the use, an attacker can replace the resource, most commonly by swapping a file for a symbolic link. The flaw is classic in setuid programs and in code that writes to shared directories like /tmp.",
+    "prerequisites": [
+      "The check and the use refer to the resource by path rather than by an already-open handle",
+      "The attacker can modify the path in between (writable directory, shared /tmp)",
+      "The program runs with higher privileges than the attacker"
+    ],
+    "impact": [
+      "Privileged write to arbitrary files such as /etc/passwd via a symlink swap",
+      "Disclosure of files the attacker could not normally read",
+      "Bypass of permission checks performed with access()"
+    ],
+    "detection_patterns": [
+      "access(path, W_OK) or os.access() followed by open(path)",
+      "os.path.exists(path) followed by open(path, 'w') to create a file",
+      "stat() or lstat() on a path followed by a separate open, chmod or chown of the same path",
+      "Predictable temporary file names in /tmp created without O_EXCL"
+    ],
+    "remediation": [
+      "Open the resource once and perform checks on the file descriptor (fstat) instead of the path",
+      "Create files atomically with O_CREAT | O_EXCL, and use O_NOFOLLOW to refuse symlinks",
+      "Use mkstemp() or Python's tempfile module rather than building temporary paths by hand",
+      "Drop privileges (seteuid) to the requesting user before opening instead of emulating checks with access()"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "if (access(path, W_OK) == 0) {       /* check */\n    int fd = open(path, O_WRONLY);     /* use: path may now be a symlink */\n    write(fd, data, len);\n}"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "seteuid(getuid());                      /* act as real user */\nint fd = open(path, O_WRONLY | O_NOFOLLOW);\nseteuid(0);\nif (fd < 0) return -1;\nstruct stat st;\nif (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) { close(fd); return -1; }\nwrite(fd, data, len);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-367",
+        "url": "https://cwe.mitre.org/data/definitions/367.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-400-uncontrolled-resource-consumption",
+    "cwe_id": "CWE-400",
+    "title": "Uncontrolled Resource Consumption",
+    "cwe_name": "Uncontrolled Resource Consumption",
+    "category": "Resource Management & DoS",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [
+      "API4:2023-Unrestricted Resource Consumption"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "javascript",
+      "python",
+      "go"
+    ],
+    "description": "The software does not properly control how much of a limited resource, such as CPU, memory, disk, file descriptors or connections, a request can consume. A single request or a small number of them can then exhaust the resource and deny service to everyone. Typical examples are reading an entire request body into memory with no size cap, and regular expressions with catastrophic backtracking.",
+    "prerequisites": [
+      "The endpoint is reachable by unauthenticated or low-privilege users",
+      "Processing cost scales with an attacker-controlled input size or complexity",
+      "No server-side limit on body size, processing time or concurrent work"
+    ],
+    "impact": [
+      "Service outage through memory exhaustion (OOM kill) or CPU saturation",
+      "Disk exhaustion that also breaks logging and other services on the host",
+      "Increased cloud costs from autoscaling under attack"
+    ],
+    "detection_patterns": [
+      "Body parsers configured without a size limit, or code reading request.body / req.on('data') into an unbounded buffer",
+      "Regular expressions with nested quantifiers like (a+)+ or (.*a){n} applied to user input (ReDoS)",
+      "Missing server timeouts (Go http.Server without ReadTimeout/WriteTimeout, no proxy timeouts)",
+      "Uploads written to disk without per-file and per-user quotas"
+    ],
+    "remediation": [
+      "Set explicit request body limits in the framework and at the reverse proxy (e.g. client_max_body_size in nginx)",
+      "Configure read, write and idle timeouts on servers and outbound clients",
+      "Avoid backtracking-prone regexes or use a linear-time engine such as RE2",
+      "Run workers with memory and CPU limits (cgroups, container limits) so one request cannot take down the host",
+      "Stream large payloads instead of buffering them fully"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "app.post('/import', (req, res) => {\n  let body = '';\n  req.on('data', chunk => { body += chunk; });   // no size cap\n  req.on('end', () => res.json(process(JSON.parse(body))));\n});"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "app.post('/import',\n  express.json({ limit: '1mb' }),          // rejects larger bodies with 413\n  (req, res) => res.json(process(req.body)));\n\nserver.requestTimeout = 30000;\nserver.headersTimeout = 10000;"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2023-44487",
+        "summary": "HTTP/2 Rapid Reset: request creation and cancellation via RST_STREAM consumed server resources, enabling record-size DDoS attacks"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-400",
+        "url": "https://cwe.mitre.org/data/definitions/400.html"
+      },
+      {
+        "title": "OWASP Denial of Service Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-770-allocation-without-limits",
+    "cwe_id": "CWE-770",
+    "title": "Allocation of Resources Without Limits",
+    "cwe_name": "Allocation of Resources Without Limits or Throttling",
+    "category": "Resource Management & DoS",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [
+      "API4:2023-Unrestricted Resource Consumption"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "sql"
+    ],
+    "description": "The software allocates resources on behalf of a caller without imposing a limit on how many or how large they may be. In APIs this most often appears as list endpoints that honour any client-supplied page size, batch endpoints with no maximum item count, or per-user objects (sessions, API keys, uploads) that can be created without quota.",
+    "prerequisites": [
+      "A parameter such as limit, page_size, ids[] or batch length is fully controlled by the client",
+      "The backend translates the request directly into a database query or allocation of that size",
+      "No per-user or per-tenant quotas are enforced"
+    ],
+    "impact": [
+      "Database and application memory exhaustion from queries returning millions of rows",
+      "Slow responses for all users while large queries run",
+      "Storage exhaustion from unlimited object creation"
+    ],
+    "detection_patterns": [
+      "Handlers passing request.args['limit'] straight into LIMIT clauses or ORM .limit() calls",
+      "List endpoints with no pagination at all (SELECT * FROM table returned as JSON)",
+      "GraphQL queries without depth, complexity or result-size limits",
+      "Creation endpoints (keys, webhooks, projects) without a count check per account"
+    ],
+    "remediation": [
+      "Apply a server-side maximum to page sizes and default to a small value when none is given",
+      "Use cursor-based pagination for large collections",
+      "Cap batch sizes and array lengths in request schema validation",
+      "Enforce per-user and per-tenant quotas on created resources",
+      "Set statement timeouts on database connections used by request handlers"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.get(\"/api/findings\")\ndef list_findings():\n    limit = int(request.args.get(\"limit\", 100))\n    rows = db.execute(\"SELECT * FROM findings LIMIT %s\", (limit,))\n    return jsonify(rows)"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "MAX_PAGE = 100\n\n@app.get(\"/api/findings\")\ndef list_findings():\n    limit = min(max(int(request.args.get(\"limit\", 25)), 1), MAX_PAGE)\n    after = int(request.args.get(\"after\", 0))\n    rows = db.execute(\"SELECT * FROM findings WHERE id > %s ORDER BY id LIMIT %s\",\n                      (after, limit))\n    return jsonify(rows)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-770",
+        "url": "https://cwe.mitre.org/data/definitions/770.html"
+      },
+      {
+        "title": "OWASP Denial of Service Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-409-decompression-bomb",
+    "cwe_id": "CWE-409",
+    "title": "Decompression Bomb (Data Amplification)",
+    "cwe_name": "Improper Handling of Highly Compressed Data (Data Amplification)",
+    "category": "Resource Management & DoS",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [
+      "API4:2023-Unrestricted Resource Consumption"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "java",
+      "go"
+    ],
+    "description": "The software decompresses input without limiting the size of the output. A small, highly compressed archive (a zip bomb) or a gzip-encoded request body can expand to gigabytes or terabytes, exhausting memory or disk. The danger is that size checks on the compressed upload give a false sense of safety.",
+    "prerequisites": [
+      "The application accepts archives, compressed uploads or Content-Encoding: gzip request bodies",
+      "Decompression output is fully buffered in memory or written to disk without a cap",
+      "Only the compressed size is validated"
+    ],
+    "impact": [
+      "Memory exhaustion and process termination",
+      "Disk exhaustion on the server or shared volume",
+      "Long CPU-bound decompression blocking worker threads"
+    ],
+    "detection_patterns": [
+      "zipfile.ZipFile(...).extractall() or ZipInputStream loops with no total-size counter",
+      "gzip.decompress(data) or zlib.decompress(data) on untrusted input",
+      "Trusting the uncompressed size declared in the archive header without enforcing it while reading",
+      "Recursive extraction of nested archives"
+    ],
+    "remediation": [
+      "Decompress in streaming fashion and abort once a maximum output size is exceeded",
+      "Limit the number of entries and the total uncompressed size per archive",
+      "Reject or cap the compression ratio (e.g. abort above 100:1)",
+      "Do not extract nested archives automatically",
+      "Run extraction in a worker with memory and disk quotas"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "import zipfile\n\ndef import_bundle(path, dest):\n    with zipfile.ZipFile(path) as z:\n        z.extractall(dest)          # no limit on expanded size"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "MAX_TOTAL, MAX_FILES = 200 * 1024 * 1024, 1000\n\ndef read_bundle(z: zipfile.ZipFile):\n    if len(z.infolist()) > MAX_FILES:\n        raise ValueError(\"too many entries\")\n    total = 0\n    for info in z.infolist():\n        with z.open(info) as f:              # stream, never trust header sizes\n            while chunk := f.read(65536):\n                total += len(chunk)\n                if total > MAX_TOTAL:\n                    raise ValueError(\"archive expands too large\")"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-409",
+        "url": "https://cwe.mitre.org/data/definitions/409.html"
+      },
+      {
+        "title": "OWASP Denial of Service Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-674-uncontrolled-recursion",
+    "cwe_id": "CWE-674",
+    "title": "Uncontrolled Recursion",
+    "cwe_name": "Uncontrolled Recursion",
+    "category": "Resource Management & DoS",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [
+      "API4:2023-Unrestricted Resource Consumption"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "java",
+      "javascript"
+    ],
+    "description": "The software uses recursion whose depth is controlled by input and does not bound it. Deeply nested JSON, XML or YAML documents, self-referencing data and recursive variable expansion can drive the call stack to exhaustion. Depending on the runtime, this produces a stack overflow crash, a RecursionError that kills the request, or unbounded memory use.",
+    "prerequisites": [
+      "A parser or tree walker recurses once per nesting level of attacker-supplied data",
+      "No explicit maximum depth is enforced",
+      "Self-references or cycles in the data are not detected"
+    ],
+    "impact": [
+      "Process crash from stack exhaustion (StackOverflowError, segfault in native code)",
+      "Denial of service for the whole worker if the error is not caught",
+      "Excessive CPU and memory consumption during expansion"
+    ],
+    "detection_patterns": [
+      "Recursive functions over request data such as def walk(node): ... walk(child) with no depth parameter",
+      "Custom JSON/XML/YAML parsers or template expanders that recurse on nesting",
+      "Recursive lookups or substitutions that may reference themselves",
+      "Catch-all handlers that swallow RecursionError and retry the same input"
+    ],
+    "remediation": [
+      "Pass a depth counter through recursive calls and reject input beyond a fixed maximum",
+      "Convert recursion to iteration with an explicit stack for untrusted structures",
+      "Detect cycles by tracking visited nodes or expansion keys",
+      "Use parser options that cap nesting depth where libraries provide them"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "def count_nodes(node):\n    total = 1\n    for child in node.get(\"children\", []):\n        total += count_nodes(child)        # depth set by client\n    return total"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "MAX_DEPTH = 64\n\ndef count_nodes(root):\n    total, stack = 0, [(root, 0)]\n    while stack:\n        node, depth = stack.pop()\n        if depth > MAX_DEPTH:\n            raise ValueError(\"tree too deep\")\n        total += 1\n        stack.extend((c, depth + 1) for c in node.get(\"children\", []))\n    return total"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2021-45105",
+        "summary": "Apache Log4j 2 did not protect against uncontrolled recursion from self-referential lookups, causing denial of service"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-674",
+        "url": "https://cwe.mitre.org/data/definitions/674.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-835-infinite-loop",
+    "cwe_id": "CWE-835",
+    "title": "Infinite Loop",
+    "cwe_name": "Loop with Unreachable Exit Condition ('Infinite Loop')",
+    "category": "Resource Management & DoS",
+    "owasp_top10_2021": [],
+    "owasp_api_2023": [
+      "API4:2023-Unrestricted Resource Consumption"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "c",
+      "python",
+      "go"
+    ],
+    "description": "The program contains a loop whose exit condition can never be satisfied for some inputs. This often happens in parsers that advance a cursor by a length taken from the input: a length of zero means the cursor never moves. A single crafted message can then pin a CPU core indefinitely.",
+    "prerequisites": [
+      "Loop progress depends on values decoded from input (length fields, offsets, pointers to next record)",
+      "Zero, negative or backward-pointing values are not rejected",
+      "No iteration cap or timeout on the processing"
+    ],
+    "impact": [
+      "CPU exhaustion of a worker or thread, eventually making the service unresponsive",
+      "Request queues backing up behind the stuck worker",
+      "Watchdog restarts and degraded availability"
+    ],
+    "detection_patterns": [
+      "while (offset < len) loops where offset += field_len and field_len may be 0",
+      "Linked structures in files (next-record offsets) followed without cycle detection",
+      "Retry loops (while True: try ... except: continue) with no attempt limit or backoff",
+      "Loops whose counter type can wrap before reaching the bound"
+    ],
+    "remediation": [
+      "Ensure every iteration makes forward progress; reject zero or backward offsets",
+      "Add a maximum iteration count proportional to the input size",
+      "Track visited offsets when following pointers inside data",
+      "Bound retry loops with a maximum attempt count and exponential backoff",
+      "Apply per-request processing timeouts"
+    ],
+    "vulnerable_example": {
+      "language": "c",
+      "code": "size_t off = 0;\nwhile (off < len) {\n    uint16_t rec_len = read_u16(buf + off);\n    handle_record(buf + off, rec_len);\n    off += rec_len;                 /* rec_len == 0 never advances */\n}"
+    },
+    "secure_example": {
+      "language": "c",
+      "code": "size_t off = 0;\nwhile (off + 2 <= len) {\n    uint16_t rec_len = read_u16(buf + off);\n    if (rec_len < 2 || rec_len > len - off)\n        return -1;                  /* must advance and stay in bounds */\n    handle_record(buf + off, rec_len);\n    off += rec_len;\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-835",
+        "url": "https://cwe.mitre.org/data/definitions/835.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-1188-insecure-default-initialization",
+    "cwe_id": "CWE-1188",
+    "title": "Insecure Default Initialization",
+    "cwe_name": "Initialization of a Resource with an Insecure Default",
+    "category": "Security Misconfiguration",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "yaml",
+      "python",
+      "javascript"
+    ],
+    "description": "A resource is created or shipped with a default setting that is insecure, and the system relies on administrators to change it. Examples include services binding to 0.0.0.0 with authentication disabled, default admin credentials, storage buckets created public, and permissive CORS. Because many deployments never change defaults, the weakness is reliably exploitable at scale.",
+    "prerequisites": [
+      "The software or deployment template ships with an insecure default value",
+      "Operators deploy without hardening or without being warned",
+      "The affected service is reachable from an untrusted network"
+    ],
+    "impact": [
+      "Unauthenticated access to databases, caches, dashboards or admin interfaces",
+      "Mass compromise through internet-wide scanning for known defaults",
+      "Data exposure from storage created with public access"
+    ],
+    "detection_patterns": [
+      "Configuration files or Helm values with auth disabled, default passwords or bind addresses of 0.0.0.0",
+      "Code like os.getenv('ADMIN_PASSWORD', 'admin') or SECRET_KEY fallbacks",
+      "Docker Compose files publishing database ports (e.g. 5432:5432, 6379:6379) on all interfaces",
+      "CORS configured with Access-Control-Allow-Origin: * plus credentials, or framework defaults left unchanged"
+    ],
+    "remediation": [
+      "Make the secure setting the default (authentication on, bind to localhost, private storage)",
+      "Fail to start when required secrets are missing instead of falling back to a hard-coded value",
+      "Generate unique credentials at install time rather than shipping a shared default",
+      "Scan infrastructure-as-code with policy tools to block insecure defaults before deployment"
+    ],
+    "vulnerable_example": {
+      "language": "yaml",
+      "code": "services:\n  redis:\n    image: redis:7.2\n    command: redis-server --protected-mode no\n    ports:\n      - \"6379:6379\"          # exposed on all host interfaces, no password"
+    },
+    "secure_example": {
+      "language": "yaml",
+      "code": "services:\n  redis:\n    image: redis:7.2\n    command: [\"redis-server\", \"--requirepass\", \"${REDIS_PASSWORD:?REDIS_PASSWORD must be set}\"]\n    ports:\n      - \"127.0.0.1:6379:6379\"  # loopback only"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-1188",
+        "url": "https://cwe.mitre.org/data/definitions/1188.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-489-active-debug-code",
+    "cwe_id": "CWE-489",
+    "title": "Active Debug Code",
+    "cwe_name": "Active Debug Code",
+    "category": "Security Misconfiguration",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "javascript",
+      "java"
+    ],
+    "description": "The application is deployed with debugging code or debug modes enabled. Interactive debuggers such as the Werkzeug debugger in Flask allow arbitrary Python execution from the browser, and debug endpoints or backdoor parameters left from development bypass normal controls. These features are intended for local use and are dangerous once reachable from a network.",
+    "prerequisites": [
+      "A debug flag, profiler or diagnostic endpoint is enabled in the production build",
+      "The debug interface is reachable by untrusted users",
+      "No build-time or deployment check separates development and production configuration"
+    ],
+    "impact": [
+      "Remote code execution through interactive debug consoles",
+      "Authentication bypass via test-only parameters or hard-coded debug users",
+      "Leakage of source code, environment variables and stack frames"
+    ],
+    "detection_patterns": [
+      "app.run(debug=True), DEBUG = True in Django settings, or FLASK_DEBUG=1 in production environment files",
+      "Routes such as /debug, /__test, /actuator/* or /admin/eval enabled without authentication",
+      "Code branches like if request.args.get('debug') == '1': skip_auth()",
+      "Node.js processes started with --inspect bound to a public interface"
+    ],
+    "remediation": [
+      "Drive debug settings from environment-specific configuration with production defaulting to off",
+      "Remove test-only routes and bypass flags from production builds, e.g. via build tags or separate modules",
+      "Add a startup assertion that refuses to run with debug enabled when ENV=production",
+      "Restrict management endpoints to internal networks and require authentication"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "from flask import Flask\napp = Flask(__name__)\n\nif __name__ == \"__main__\":\n    app.run(host=\"0.0.0.0\", debug=True)   # Werkzeug console reachable remotely"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "import os\nfrom flask import Flask\napp = Flask(__name__)\n\nif __name__ == \"__main__\":\n    debug = os.environ.get(\"APP_ENV\") == \"development\"\n    host = \"127.0.0.1\" if debug else \"0.0.0.0\"\n    app.run(host=host, debug=debug)\n# production: run under gunicorn, never app.run()"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-489",
+        "url": "https://cwe.mitre.org/data/definitions/489.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-693-protection-mechanism-failure",
+    "cwe_id": "CWE-693",
+    "title": "Protection Mechanism Failure",
+    "cwe_name": "Protection Mechanism Failure",
+    "category": "Security Misconfiguration",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design",
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "javascript",
+      "python",
+      "nginx"
+    ],
+    "description": "The product does not use, or incorrectly uses, a protection mechanism that would defend against a class of attack. This covers missing defences (no CSRF tokens, no security headers, no rate limit) as well as defences that are present but ineffective because they are disabled, misconfigured or easily bypassed. It is a broad class; more specific CWEs should be preferred when the exact failure is known.",
+    "prerequisites": [
+      "A standard defence for the platform is absent, disabled or configured permissively",
+      "The attack class it would prevent is applicable (e.g. browser-based clients for CSRF or clickjacking)",
+      "No testing verifies that the defence is active in the deployed environment"
+    ],
+    "impact": [
+      "Exposure to attacks the mechanism was meant to stop (CSRF, clickjacking, XSS, brute force)",
+      "False confidence because a control appears configured but does not take effect",
+      "Audit and compliance failures"
+    ],
+    "detection_patterns": [
+      "Security middleware commented out or disabled (csrf_exempt, helmet() not applied, CSP removed)",
+      "Response headers missing Content-Security-Policy, X-Frame-Options/frame-ancestors or Strict-Transport-Security",
+      "Defences applied only in client-side JavaScript",
+      "Allow-list checks implemented with substring matching that can be bypassed"
+    ],
+    "remediation": [
+      "Enable framework security middleware globally and require justification for any exemption",
+      "Set security headers centrally at the reverse proxy or application entry point",
+      "Enforce controls on the server, never only in the client",
+      "Add automated tests or DAST checks that assert headers and CSRF validation are present"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "const app = express();\n// helmet and csrf protection removed during debugging\napp.use(express.urlencoded({ extended: false }));\napp.post('/account/email', requireLogin, updateEmail);"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "const app = express();\napp.use(helmet());                          // CSP, HSTS, frame-ancestors, ...\napp.use(express.urlencoded({ extended: false }));\napp.use(session({ cookie: { sameSite: 'lax', secure: true, httpOnly: true } }));\napp.post('/account/email', requireLogin, verifyCsrfToken, updateEmail);"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-693",
+        "url": "https://cwe.mitre.org/data/definitions/693.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-1395-vulnerable-third-party-component",
+    "cwe_id": "CWE-1395",
+    "title": "Dependency on Vulnerable Third-Party Component",
+    "cwe_name": "Dependency on Vulnerable Third-Party Component",
+    "category": "Supply Chain",
+    "owasp_top10_2021": [
+      "A06:2021-Vulnerable and Outdated Components"
+    ],
+    "owasp_api_2023": [
+      "API9:2023-Improper Inventory Management"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "java",
+      "xml",
+      "javascript",
+      "python"
+    ],
+    "description": "The product depends on a library, framework or other third-party component that contains a known vulnerability. The weakness is inherited: application code may be correct, yet the bundled component is exploitable. Exposure is usually caused by unpinned or never-updated dependencies and by not tracking transitive dependencies in a software bill of materials (SBOM).",
+    "prerequisites": [
+      "A dependency version with a published vulnerability is included in the build or runtime",
+      "The vulnerable code path is reachable from attacker input",
+      "There is no automated dependency scanning or update process"
+    ],
+    "impact": [
+      "Remote code execution through a framework or library flaw",
+      "Data breach via a vulnerability the team was unaware of",
+      "Rapid mass exploitation once a public exploit is released"
+    ],
+    "detection_patterns": [
+      "Lockfiles or manifests (pom.xml, package-lock.json, requirements.txt) containing versions listed in advisories (OSV, GitHub Advisory Database, NVD)",
+      "Unpinned version ranges such as \"*\", \"latest\" or >= without a lockfile",
+      "Vendored copies of libraries with no recorded version",
+      "Container base images not rebuilt for months"
+    ],
+    "remediation": [
+      "Run software composition analysis (e.g. OWASP Dependency-Check, npm audit, pip-audit, osv-scanner) in CI and fail on critical findings",
+      "Pin versions in lockfiles and update them through automated pull requests (Dependabot, Renovate)",
+      "Produce and maintain an SBOM so exposure to a new advisory can be determined quickly",
+      "Remove unused dependencies to reduce attack surface"
+    ],
+    "vulnerable_example": {
+      "language": "xml",
+      "code": "<dependency>\n  <groupId>org.apache.logging.log4j</groupId>\n  <artifactId>log4j-core</artifactId>\n  <version>2.14.1</version>   <!-- affected by Log4Shell -->\n</dependency>"
+    },
+    "secure_example": {
+      "language": "xml",
+      "code": "<dependency>\n  <groupId>org.apache.logging.log4j</groupId>\n  <artifactId>log4j-core</artifactId>\n  <version>2.17.1</version>   <!-- patched; kept current by Dependabot -->\n</dependency>"
+    },
+    "cve_examples": [
+      {
+        "id": "CVE-2021-44228",
+        "summary": "Log4Shell: JNDI lookup in Apache Log4j 2 message formatting allowed remote code execution in countless dependent applications"
+      },
+      {
+        "id": "CVE-2017-5638",
+        "summary": "Apache Struts Jakarta Multipart parser RCE; exploited against unpatched deployments including the 2017 Equifax breach"
+      }
+    ],
+    "references": [
+      {
+        "title": "CWE-1395",
+        "url": "https://cwe.mitre.org/data/definitions/1395.html"
+      },
+      {
+        "title": "OWASP Vulnerable Dependency Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Vulnerable_Dependency_Management_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Top 10 2021 A06 Vulnerable and Outdated Components",
+        "url": "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-1104-unmaintained-third-party-components",
+    "cwe_id": "CWE-1104",
+    "title": "Use of Unmaintained Third-Party Components",
+    "cwe_name": "Use of Unmaintained Third Party Components",
+    "category": "Supply Chain",
+    "owasp_top10_2021": [
+      "A06:2021-Vulnerable and Outdated Components"
+    ],
+    "owasp_api_2023": [
+      "API9:2023-Improper Inventory Management"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "java"
+    ],
+    "description": "The product relies on third-party components that are no longer actively maintained by their authors or vendor. Even if no vulnerability is known today, newly discovered flaws will not be patched, and the component may block upgrades of the language runtime or other dependencies. Abandoned packages are also attractive targets for account takeover by attackers who then publish malicious versions.",
+    "prerequisites": [
+      "A dependency is archived, deprecated, end-of-life, or has had no release for years",
+      "No internal owner is responsible for patching or replacing it",
+      "The component processes untrusted input or runs with significant privileges"
+    ],
+    "impact": [
+      "Known-but-unfixed vulnerabilities remain in production indefinitely",
+      "Inability to upgrade the runtime (e.g. stuck on an end-of-life Python or Node.js version)",
+      "Exposure to malicious releases if the abandoned package's maintainer account is compromised"
+    ],
+    "detection_patterns": [
+      "Dependencies whose upstream repositories are archived or marked deprecated in the package registry",
+      "Runtime or framework versions past their end-of-life date (e.g. Python 2.7, AngularJS 1.x)",
+      "Packages with no commits or releases for several years and many open security issues",
+      "Forked or vendored libraries with no record of upstream syncs"
+    ],
+    "remediation": [
+      "Review dependency health (release cadence, maintainer activity, deprecation notices) before adoption and periodically after",
+      "Track end-of-life dates for runtimes, frameworks and base images and plan migrations ahead of them",
+      "Replace abandoned packages with maintained alternatives or take over maintenance in an internal fork with an owner",
+      "Flag deprecated packages automatically in CI (npm deprecation warnings, OpenSSF Scorecard checks)"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "// package.json\n\"dependencies\": {\n  \"request\": \"^2.88.2\"     // deprecated in 2020, no further fixes\n}"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "// package.json - maintained HTTP client, version pinned via lockfile\n\"dependencies\": {\n  \"undici\": \"6.19.8\"\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-1104",
+        "url": "https://cwe.mitre.org/data/definitions/1104.html"
+      },
+      {
+        "title": "OWASP Vulnerable Dependency Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Vulnerable_Dependency_Management_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Top 10 2021 A06 Vulnerable and Outdated Components",
+        "url": "https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-829-untrusted-control-sphere-inclusion",
+    "cwe_id": "CWE-829",
+    "title": "Inclusion of Functionality from Untrusted Control Sphere",
+    "cwe_name": "Inclusion of Functionality from Untrusted Control Sphere",
+    "category": "Supply Chain",
+    "owasp_top10_2021": [
+      "A08:2021-Software and Data Integrity Failures"
+    ],
+    "owasp_api_2023": [
+      "API10:2023-Unsafe Consumption of APIs"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "html",
+      "javascript",
+      "yaml"
+    ],
+    "description": "The product imports or executes code that comes from a source outside its control without verifying it. Typical cases are third-party scripts loaded from a CDN without Subresource Integrity, CI pipelines referencing actions by mutable tags, and installing packages whose names are typosquats of popular libraries. If the external source is compromised, the attacker's code runs with the application's privileges.",
+    "prerequisites": [
+      "The application loads scripts, plugins or build steps from a third-party location at build or run time",
+      "The reference is mutable (tag, branch, unversioned URL) and not integrity-checked",
+      "The third party or its distribution channel can be compromised or impersonated"
+    ],
+    "impact": [
+      "Injection of malicious JavaScript into every page (card skimming, session theft)",
+      "Compromise of CI secrets and build artefacts through a malicious pipeline step",
+      "Malware installation via typosquatted or hijacked packages"
+    ],
+    "detection_patterns": [
+      "<script src=\"https://cdn...\"> tags without integrity and crossorigin attributes",
+      "GitHub Actions referenced by tag or branch (uses: some/action@v1 or @main) instead of a full commit SHA",
+      "Package names that differ by one character from well-known packages (e.g. reqeusts, python3-dateutil)",
+      "Dynamic import or require of a URL or path built from configuration or user input"
+    ],
+    "remediation": [
+      "Add Subresource Integrity hashes to third-party scripts and stylesheets, or self-host them",
+      "Pin CI actions and container images to immutable digests (commit SHA, sha256)",
+      "Verify package names and publishers before adding dependencies; use an internal registry or allow-list",
+      "Use a Content-Security-Policy that restricts script sources to approved origins"
+    ],
+    "vulnerable_example": {
+      "language": "html",
+      "code": "<script src=\"https://cdn.example-cdn.com/chart-lib/latest/chart.min.js\"></script>"
+    },
+    "secure_example": {
+      "language": "html",
+      "code": "<script src=\"https://cdn.example-cdn.com/chart-lib/4.4.1/chart.min.js\"\n        integrity=\"sha384-<base64 hash of the exact file>\"\n        crossorigin=\"anonymous\"></script>"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-829",
+        "url": "https://cwe.mitre.org/data/definitions/829.html"
+      },
+      {
+        "title": "OWASP Third Party JavaScript Management Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Third_Party_Javascript_Management_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP NPM Security Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/NPM_Security_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Top 10 2021 A08 Software and Data Integrity Failures",
+        "url": "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-494-download-without-integrity-check",
+    "cwe_id": "CWE-494",
+    "title": "Download of Code Without Integrity Check",
+    "cwe_name": "Download of Code Without Integrity Check",
+    "category": "Supply Chain",
+    "owasp_top10_2021": [
+      "A08:2021-Software and Data Integrity Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "high",
+    "languages": [
+      "shell",
+      "dockerfile",
+      "python"
+    ],
+    "description": "The product downloads code or executables from a remote location and runs them without verifying a checksum or signature. The common anti-pattern is piping an installer from curl directly into a shell in a Dockerfile or CI script. A compromised server, DNS hijack or tampered mirror then results in arbitrary code execution inside the build or production environment.",
+    "prerequisites": [
+      "Code is fetched over the network at build, install or update time",
+      "No hash pinning or signature verification is applied before execution",
+      "The download source or path to it (DNS, mirror, CDN) can be tampered with"
+    ],
+    "impact": [
+      "Arbitrary code execution in build systems, containers or end-user machines",
+      "Persistent backdoors in published images and releases",
+      "Theft of CI credentials and deployment keys"
+    ],
+    "detection_patterns": [
+      "curl ... | sh, wget -O- ... | bash, or iex (iwr ...) in Dockerfiles, CI configs and install docs",
+      "Auto-update routines that download and execute binaries without signature checks",
+      "pip install or npm install from arbitrary URLs without --require-hashes or lockfile integrity",
+      "Download over plain HTTP"
+    ],
+    "remediation": [
+      "Download to a file, verify a pinned SHA-256 checksum or a vendor signature (GPG, Sigstore/cosign), then execute",
+      "Pin installer versions so the expected hash is stable",
+      "Use pip install --require-hashes and committed lockfiles with integrity fields",
+      "Sign update packages and verify the signature in the updater before installing"
+    ],
+    "vulnerable_example": {
+      "language": "dockerfile",
+      "code": "FROM debian:12-slim\nRUN apt-get update && apt-get install -y curl\nRUN curl -fsSL https://example.com/install.sh | sh"
+    },
+    "secure_example": {
+      "language": "dockerfile",
+      "code": "FROM debian:12-slim\nARG TOOL_VERSION=1.8.2\nARG TOOL_SHA256=<published sha256 for this version>\nRUN apt-get update && apt-get install -y curl \\\n && curl -fsSLo /tmp/tool.tar.gz https://example.com/releases/tool-${TOOL_VERSION}.tar.gz \\\n && echo \"${TOOL_SHA256}  /tmp/tool.tar.gz\" | sha256sum -c - \\\n && tar -xzf /tmp/tool.tar.gz -C /usr/local/bin"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-494",
+        "url": "https://cwe.mitre.org/data/definitions/494.html"
+      },
+      {
+        "title": "OWASP Top 10 2021 A08 Software and Data Integrity Failures",
+        "url": "https://owasp.org/Top10/A08_2021-Software_and_Data_Integrity_Failures/"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-778-insufficient-logging",
+    "cwe_id": "CWE-778",
+    "title": "Insufficient Logging",
+    "cwe_name": "Insufficient Logging",
+    "category": "Logging & Monitoring",
+    "owasp_top10_2021": [
+      "A09:2021-Security Logging and Monitoring Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "java",
+      "javascript"
+    ],
+    "description": "Security-relevant events such as failed logins, access-control denials, privilege changes and input validation failures are not recorded, or are recorded without enough context to be useful. Without these logs, attacks like credential stuffing go unnoticed and incident responders cannot reconstruct what happened. It is a common reason why breaches are detected late.",
+    "prerequisites": [
+      "Authentication, authorization and administrative actions are implemented without audit logging",
+      "Logs are not shipped to central storage or are not monitored",
+      "Log retention is too short to cover typical detection delays"
+    ],
+    "impact": [
+      "Attacks proceed undetected (brute force, enumeration, privilege abuse)",
+      "Inability to determine the scope of a breach or which data was accessed",
+      "Failure to meet regulatory audit requirements"
+    ],
+    "detection_patterns": [
+      "Login handlers that return an error on bad credentials without logging the attempt",
+      "Authorization checks that raise 403 with no audit record",
+      "Exception handlers using bare except: pass around security-relevant operations",
+      "Logging configured only at ERROR level in production so WARN-level security events are dropped"
+    ],
+    "remediation": [
+      "Log authentication successes and failures, access denials, privilege and configuration changes with user, source IP, timestamp and outcome",
+      "Use structured (JSON) logs and forward them to a central, tamper-resistant store",
+      "Define alerts for suspicious patterns such as many failures per account or per IP",
+      "Never log secrets, passwords or full tokens in these events"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "def login(username, password):\n    user = User.get(username)\n    if not user or not user.check_password(password):\n        return error(\"invalid credentials\"), 401\n    return issue_session(user)"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "audit = logging.getLogger(\"audit\")\n\ndef login(username, password):\n    user = User.get(username)\n    if not user or not user.check_password(password):\n        audit.warning(\"login_failed\", extra={\"user\": username, \"ip\": request.remote_addr})\n        return error(\"invalid credentials\"), 401\n    audit.info(\"login_success\", extra={\"user_id\": user.id, \"ip\": request.remote_addr})\n    return issue_session(user)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-778",
+        "url": "https://cwe.mitre.org/data/definitions/778.html"
+      },
+      {
+        "title": "OWASP Logging Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
+      },
+      {
+        "title": "OWASP Top 10 2021 A09 Security Logging and Monitoring Failures",
+        "url": "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-223-omission-of-security-information",
+    "cwe_id": "CWE-223",
+    "title": "Omission of Security-relevant Information",
+    "cwe_name": "Omission of Security-relevant Information",
+    "category": "Logging & Monitoring",
+    "owasp_top10_2021": [
+      "A09:2021-Security Logging and Monitoring Failures"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "low",
+    "languages": [
+      "python",
+      "java",
+      "go"
+    ],
+    "description": "The product records an event but leaves out details that are needed to judge whether it was an attack or to attribute it. Log lines such as 'access denied' without the acting user, target resource or source address are present but forensically useless. This differs from insufficient logging in that the event is logged, but its security context is missing.",
+    "prerequisites": [
+      "Events are logged with fixed messages rather than structured fields",
+      "Identity, request and resource identifiers are not propagated to the logging layer",
+      "Reverse proxies hide the client address and the application logs only the proxy IP"
+    ],
+    "impact": [
+      "Inability to attribute malicious actions to an account or source",
+      "Correlation across services is impossible without request identifiers",
+      "Alerts cannot distinguish one noisy client from a distributed attack"
+    ],
+    "detection_patterns": [
+      "Log statements like log.warn(\"permission denied\") with no user, resource or action fields",
+      "Logged client IP is always the load balancer address because X-Forwarded-For is not handled by a trusted proxy configuration",
+      "No correlation or request ID in log records",
+      "Timestamps without time zone or with unsynchronized clocks"
+    ],
+    "remediation": [
+      "Include who (user or service ID), what (action and resource), where (source IP, request ID) and when (UTC timestamp) in every security event",
+      "Configure trusted proxy handling so the real client IP is logged",
+      "Propagate a correlation ID across services and include it in logs",
+      "Use a shared logging schema or vocabulary for security events"
+    ],
+    "vulnerable_example": {
+      "language": "go",
+      "code": "if !canDelete(user, projectID) {\n    log.Println(\"permission denied\")\n    http.Error(w, \"forbidden\", http.StatusForbidden)\n    return\n}"
+    },
+    "secure_example": {
+      "language": "go",
+      "code": "if !canDelete(user, projectID) {\n    slog.Warn(\"authz_denied\",\n        \"user_id\", user.ID, \"action\", \"project.delete\",\n        \"project_id\", projectID, \"client_ip\", clientIP(r),\n        \"request_id\", r.Header.Get(\"X-Request-ID\"))\n    http.Error(w, \"forbidden\", http.StatusForbidden)\n    return\n}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-223",
+        "url": "https://cwe.mitre.org/data/definitions/223.html"
+      },
+      {
+        "title": "OWASP Logging Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-755-improper-exceptional-condition-handling",
+    "cwe_id": "CWE-755",
+    "title": "Improper Handling of Exceptional Conditions",
+    "cwe_name": "Improper Handling of Exceptional Conditions",
+    "category": "Error Handling",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "java",
+      "javascript"
+    ],
+    "description": "The software does not handle, or handles incorrectly, exceptional conditions such as failed network calls, missing files, timeouts or unexpected exceptions. A frequent security consequence is failing open: when an authorization service or signature check raises an error, a broad catch block lets the request continue as if the check had passed.",
+    "prerequisites": [
+      "Security decisions depend on calls that can throw or time out",
+      "Broad exception handlers swallow errors or return a permissive default",
+      "The attacker can induce the error (malformed input, slow dependency, resource exhaustion)"
+    ],
+    "impact": [
+      "Authorization or validation bypass when the check fails open",
+      "Inconsistent state after a partially completed operation",
+      "Crashes or hung workers when exceptions are not handled at all"
+    ],
+    "detection_patterns": [
+      "except Exception: pass or catch (Exception e) {} around authentication, authorization or signature checks",
+      "Functions that return True or a default allow value inside an exception handler",
+      "Missing timeout and error handling on calls to identity providers or policy services",
+      "Unhandled promise rejections in Node.js request handlers"
+    ],
+    "remediation": [
+      "Fail closed: deny the operation when a security check cannot be completed",
+      "Catch specific exception types and handle each deliberately",
+      "Use transactions so partial failures roll back",
+      "Register a global error handler that returns a generic error and logs details server-side"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "def is_authorized(user, resource):\n    try:\n        return policy_client.check(user.id, resource.id)\n    except Exception:\n        return True          # fails open when policy service is down"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "def is_authorized(user, resource):\n    try:\n        return policy_client.check(user.id, resource.id, timeout=2)\n    except (PolicyTimeout, PolicyUnavailable):\n        log.error(\"policy check failed\", extra={\"user\": user.id})\n        return False         # fail closed"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-755",
+        "url": "https://cwe.mitre.org/data/definitions/755.html"
+      },
+      {
+        "title": "OWASP Error Handling Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-841-improper-workflow-enforcement",
+    "cwe_id": "CWE-841",
+    "title": "Improper Enforcement of Behavioral Workflow",
+    "cwe_name": "Improper Enforcement of Behavioral Workflow",
+    "category": "Business Logic",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [
+      "API6:2023-Unrestricted Access to Sensitive Business Flows"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "java"
+    ],
+    "description": "The application expects users to perform actions in a particular order but does not enforce that order on the server. An attacker can call a later step directly, for example confirming an order without paying, resetting a password without completing verification, or skipping a mandatory review. Each endpoint is individually authorized, yet the sequence is not.",
+    "prerequisites": [
+      "A multi-step process is implemented as separate endpoints or pages",
+      "Progress through the steps is tracked on the client (hidden fields, URL parameters) or not at all",
+      "Later steps do not verify that earlier steps completed successfully"
+    ],
+    "impact": [
+      "Goods or services obtained without payment",
+      "Account takeover by skipping verification steps in recovery flows",
+      "Bypass of approval or review stages in administrative workflows"
+    ],
+    "detection_patterns": [
+      "Step handlers that do not read and check a server-side state field (status, stage) before acting",
+      "Hidden form fields such as step=3 or paid=true trusted by the server",
+      "State transitions written as unconditional UPDATE status = 'confirmed'",
+      "Password reset endpoints that accept a new password without checking a verified token"
+    ],
+    "remediation": [
+      "Model workflows as an explicit server-side state machine and validate every transition",
+      "Store progress server-side bound to the session or the business object, never in client-controlled fields",
+      "Use conditional updates (UPDATE ... WHERE status = 'paid') so out-of-order calls have no effect",
+      "Write tests that call each step out of order and expect rejection"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.post(\"/orders/<int:oid>/confirm\")\ndef confirm(oid):\n    order = Order.get(oid, owner=current_user)\n    order.status = \"confirmed\"        # payment step never checked\n    order.save()\n    ship(order)"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "@app.post(\"/orders/<int:oid>/confirm\")\ndef confirm(oid):\n    order = Order.get(oid, owner=current_user)\n    if order.status != \"paid\":\n        abort(409, \"order must be paid before confirmation\")\n    order.transition(\"paid\", \"confirmed\")   # atomic, checks current state\n    ship(order)"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-841",
+        "url": "https://cwe.mitre.org/data/definitions/841.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-799-interaction-frequency-control",
+    "cwe_id": "CWE-799",
+    "title": "Improper Control of Interaction Frequency",
+    "cwe_name": "Improper Control of Interaction Frequency",
+    "category": "Business Logic",
+    "owasp_top10_2021": [
+      "A04:2021-Insecure Design"
+    ],
+    "owasp_api_2023": [
+      "API4:2023-Unrestricted Resource Consumption",
+      "API6:2023-Unrestricted Access to Sensitive Business Flows"
+    ],
+    "severity_default": "medium",
+    "languages": [
+      "python",
+      "javascript",
+      "go"
+    ],
+    "description": "The product does not limit how often a user or client can perform an action. Without rate limits, attackers can brute-force passwords or one-time codes, enumerate accounts, abuse SMS or email sending, and automate scarce business actions such as ticket purchases or coupon redemptions. The fix is a deliberate per-identity and per-source frequency policy for each sensitive action.",
+    "prerequisites": [
+      "A sensitive action (login, OTP verification, password reset, message sending) has no request quota",
+      "The attacker can automate requests from one or many sources",
+      "The action has a small search space or an associated per-use cost"
+    ],
+    "impact": [
+      "Brute forcing of passwords and short numeric OTP codes",
+      "SMS or email pumping that generates direct financial cost",
+      "Scalping or exhaustion of limited resources by bots"
+    ],
+    "detection_patterns": [
+      "Login, OTP and password-reset routes with no rate-limiting middleware or decorator",
+      "Rate limits keyed only by IP, allowing distributed attacks against one account",
+      "OTP verification without a maximum attempt count per code",
+      "Endpoints that send messages or trigger paid third-party calls with no per-user quota"
+    ],
+    "remediation": [
+      "Apply rate limits per account, per IP and globally on authentication and messaging endpoints",
+      "Invalidate one-time codes after a small number of failed attempts",
+      "Add progressive delays, CAPTCHA or step-up checks after repeated failures",
+      "Return HTTP 429 with Retry-After and log throttling events for monitoring"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.post(\"/verify-otp\")\ndef verify_otp():\n    code = request.json[\"code\"]           # 6 digits, unlimited guesses\n    if code == session[\"otp\"]:\n        return mark_verified()\n    return {\"error\": \"invalid\"}, 400"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "@app.post(\"/verify-otp\")\n@limiter.limit(\"5 per minute\")\ndef verify_otp():\n    otp = OtpChallenge.current(session[\"user_id\"])\n    if otp is None or otp.attempts >= 5:\n        return {\"error\": \"request a new code\"}, 429\n    otp.attempts += 1; otp.save()\n    if hmac.compare_digest(request.json[\"code\"], otp.code):\n        return mark_verified()\n    return {\"error\": \"invalid\"}, 400"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-799",
+        "url": "https://cwe.mitre.org/data/definitions/799.html"
+      },
+      {
+        "title": "OWASP Denial of Service Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-15-external-control-of-configuration",
+    "cwe_id": "CWE-15",
+    "title": "External Control of System or Configuration Setting",
+    "cwe_name": "External Control of System or Configuration Setting",
+    "category": "Security Misconfiguration",
+    "owasp_top10_2021": [
+      "A05:2021-Security Misconfiguration"
+    ],
+    "owasp_api_2023": [
+      "API3:2023-Broken Object Property Level Authorization"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "javascript",
+      "java"
+    ],
+    "description": "One or more system or configuration settings can be changed by an external user who should not control them. Examples include request parameters that select the database, log level, feature flags, or a callback host, and settings APIs that accept arbitrary keys. Altering configuration can disable security features or redirect the application to attacker-controlled resources.",
+    "prerequisites": [
+      "Configuration values are read from request parameters, headers or user-editable records",
+      "Settings updates accept arbitrary keys instead of an allow-list",
+      "No privilege check restricts who can change system-level settings"
+    ],
+    "impact": [
+      "Disabling security controls such as authentication, TLS verification or audit logging",
+      "Redirecting connections or webhooks to attacker infrastructure",
+      "Service disruption by setting invalid or extreme values"
+    ],
+    "detection_patterns": [
+      "Code like config[key] = value or setattr(settings, key, value) with key from the request",
+      "Query parameters such as ?debug=1, ?db=, ?log_level= honoured in production",
+      "Admin settings endpoints that lack role checks or accept nested objects unchecked",
+      "Environment variables or connection strings assembled from user input"
+    ],
+    "remediation": [
+      "Separate system configuration from user preferences and never derive system settings from requests",
+      "Allow-list the settings users may change and validate each value's type and range",
+      "Require administrative authorization and audit logging for configuration changes",
+      "Load security-critical settings from read-only, deployment-controlled sources"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.post(\"/api/settings\")\n@login_required\ndef update_settings():\n    for key, value in request.json.items():\n        setattr(app_settings, key, value)   # e.g. {\"verify_tls\": false}\n    return {\"ok\": True}"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "USER_EDITABLE = {\"theme\": str, \"timezone\": str, \"page_size\": int}\n\n@app.post(\"/api/settings\")\n@login_required\ndef update_settings():\n    prefs = {}\n    for key, value in request.json.items():\n        if key not in USER_EDITABLE or not isinstance(value, USER_EDITABLE[key]):\n            abort(400, f\"setting not allowed: {key}\")\n        prefs[key] = value\n    current_user.preferences.update(prefs)\n    return {\"ok\": True}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-15",
+        "url": "https://cwe.mitre.org/data/definitions/15.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-497-system-information-exposure",
+    "cwe_id": "CWE-497",
+    "title": "Exposure of Sensitive System Information",
+    "cwe_name": "Exposure of Sensitive System Information to an Unauthorized Control Sphere",
+    "category": "Information Exposure",
+    "owasp_top10_2021": [
+      "A01:2021-Broken Access Control"
+    ],
+    "owasp_api_2023": [
+      "API8:2023-Security Misconfiguration"
+    ],
+    "severity_default": "low",
+    "languages": [
+      "python",
+      "javascript",
+      "nginx"
+    ],
+    "description": "The application reveals internal system details, such as software versions, file paths, environment variables, internal hostnames or stack traces, to users who are not authorized to see them. This information does not compromise the system by itself but significantly helps an attacker select matching exploits and map internal infrastructure.",
+    "prerequisites": [
+      "Error pages, headers or diagnostic endpoints are reachable by untrusted users",
+      "The application or server returns raw exception details or environment data",
+      "Version banners are enabled by default and not disabled"
+    ],
+    "impact": [
+      "Faster targeting of known vulnerabilities based on exact versions",
+      "Disclosure of internal paths, hostnames and IPs that aids lateral movement",
+      "Leakage of secrets present in environment variables or configuration dumps"
+    ],
+    "detection_patterns": [
+      "Server and X-Powered-By response headers with exact versions",
+      "Endpoints returning os.environ, phpinfo(), /actuator/env or /server-status publicly",
+      "Exception handlers that send traceback or stack trace text in HTTP responses",
+      "Health checks that include dependency versions, hostnames or connection strings"
+    ],
+    "remediation": [
+      "Disable version banners (server_tokens off in nginx, app.disable('x-powered-by') in Express)",
+      "Return generic error messages to clients and log details server-side with a correlation ID",
+      "Restrict diagnostic and metrics endpoints to internal networks or authenticated administrators",
+      "Keep public health checks minimal (status only)"
+    ],
+    "vulnerable_example": {
+      "language": "python",
+      "code": "@app.get(\"/health\")\ndef health():\n    return {\n        \"status\": \"ok\",\n        \"python\": sys.version,\n        \"host\": socket.gethostname(),\n        \"env\": dict(os.environ),          # includes secrets\n    }"
+    },
+    "secure_example": {
+      "language": "python",
+      "code": "@app.get(\"/health\")\ndef health():\n    return {\"status\": \"ok\"}\n\n@app.get(\"/internal/diagnostics\")\n@require_role(\"admin\")\ndef diagnostics():\n    return {\"python\": sys.version, \"host\": socket.gethostname()}"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-497",
+        "url": "https://cwe.mitre.org/data/definitions/497.html"
+      },
+      {
+        "title": "OWASP Error Handling Cheat Sheet",
+        "url": "https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html"
+      }
+    ]
+  },
+  {
+    "slug": "cwe-1426-improper-genai-output-validation",
+    "cwe_id": "CWE-1426",
+    "title": "Improper Validation of Generative AI Output",
+    "cwe_name": "Improper Validation of Generative AI Output",
+    "category": "AI/LLM Security",
+    "owasp_top10_2021": [
+      "A03:2021-Injection"
+    ],
+    "owasp_api_2023": [
+      "API10:2023-Unsafe Consumption of APIs"
+    ],
+    "severity_default": "high",
+    "languages": [
+      "python",
+      "javascript"
+    ],
+    "description": "The product uses output from a generative AI model, such as an LLM, without validating that it is safe and conforms to the expected format before acting on it. Model output can be steered by prompt injection hidden in retrieved documents or user input, so it must be treated as untrusted. Passing it unchecked into HTML, SQL, shell commands or tool calls turns the model into an injection vector.",
+    "prerequisites": [
+      "Model output is passed to an interpreter, renderer or privileged tool (browser DOM, SQL, shell, API call)",
+      "Prompts include attacker-influenced content (user messages, retrieved documents, web pages)",
+      "No schema, allow-list or encoding is applied to the output"
+    ],
+    "impact": [
+      "Cross-site scripting when generated text is rendered as HTML",
+      "SQL or command injection when generated queries or commands are executed",
+      "Unauthorized actions when the model selects tools or arguments outside the user's permissions",
+      "Users acting on fabricated facts, references or package names"
+    ],
+    "detection_patterns": [
+      "innerHTML, dangerouslySetInnerHTML or Markdown rendering of model responses without sanitization",
+      "eval(), exec(), subprocess or cursor.execute() called with text produced by an LLM",
+      "JSON parsed from model output and used without schema validation",
+      "Agent tool calls executed without checking that the tool and arguments are permitted for the current user"
+    ],
+    "remediation": [
+      "Treat model output as untrusted input: validate against a strict schema (JSON Schema, Pydantic) and reject non-conforming responses",
+      "Encode or sanitize output for the target context, e.g. render as text or sanitize HTML with an allow-list",
+      "Never execute generated code or queries directly; map outputs to parameterized, pre-approved operations",
+      "Enforce authorization on every tool call independently of the model's decision and require human confirmation for high-impact actions"
+    ],
+    "vulnerable_example": {
+      "language": "javascript",
+      "code": "const answer = await llm.complete(prompt);\ndocument.getElementById('chat').innerHTML = answer;   // model may emit <img onerror=...>"
+    },
+    "secure_example": {
+      "language": "javascript",
+      "code": "const answer = await llm.complete(prompt);\nconst html = DOMPurify.sanitize(marked.parse(answer), {\n  ALLOWED_TAGS: ['p', 'ul', 'ol', 'li', 'code', 'pre', 'strong', 'em']\n});\ndocument.getElementById('chat').innerHTML = html;"
+    },
+    "cve_examples": [],
+    "references": [
+      {
+        "title": "CWE-1426",
+        "url": "https://cwe.mitre.org/data/definitions/1426.html"
+      }
+    ]
+  }
+]

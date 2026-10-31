@@ -1,0 +1,2 @@
+# Optional: local CPU embeddings (EMBEDDING_PROVIDER=local) instead of OpenAI.
+fastembed==0.4.2

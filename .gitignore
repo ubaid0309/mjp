@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+*.local
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+supabase/.temp/
+supabase/.branches/
+# The demo project intentionally contains a node_modules folder (to prove it is excluded from scans).
+!demo/bytemart-vulnerable/node_modules/
+*.tsbuildinfo
+# Synthetic demo config (intentionally insecure, no real secrets)
+!demo/bytemart-vulnerable/.env
